@@ -43,7 +43,9 @@ jobs:
       - name: Set deployment base URL
         shell: bash
         run: |
-          if [ "${{ github.event.repository.name }}" = "${{ github.repository_owner }}.github.io" ]; then
+          if [ -f public/CNAME ]; then
+            echo "NUXT_APP_BASE_URL=/" >> "$GITHUB_ENV"
+          elif [ "${{ github.event.repository.name }}" = "${{ github.repository_owner }}.github.io" ]; then
             echo "NUXT_APP_BASE_URL=/" >> "$GITHUB_ENV"
           else
             echo "NUXT_APP_BASE_URL=/${{ github.event.repository.name }}/" >> "$GITHUB_ENV"
