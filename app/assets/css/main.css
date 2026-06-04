@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+@theme {
+  --color-espresso-50: #f7f0e5;
+  --color-espresso-100: #eedfd0;
+  --color-espresso-200: #dcc0a5;
+  --color-espresso-300: #c59c76;
+  --color-espresso-400: #ab7853;
+  --color-espresso-500: #8e5f3f;
+  --color-espresso-600: #734b33;
+  --color-espresso-700: #593929;
+  --color-espresso-800: #4b3127;
+  --color-espresso-900: #2d1d17;
+  --color-cream-50: #fcfaf7;
+  --color-cream-100: #f7f0e5;
+  --color-sage-100: #dcebd8;
+  --color-sage-500: #5b8c61;
+  --color-amber-100: #f9e6be;
+  --color-amber-500: #d38b17;
+  --color-coral-100: #f8d5d1;
+  --color-coral-500: #d35f53;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    @apply bg-cream-100 text-stone-950 antialiased;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    @apply focus:outline-none;
+  }
+}
+
+@layer components {
+  .surface-card {
+    @apply rounded-3xl border border-white/70 bg-white/85 shadow-sm shadow-espresso-900/5 backdrop-blur;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold tracking-tight text-espresso-900;
+  }
+
+  .field-label {
+    @apply mb-2 block text-sm font-medium text-espresso-800;
+  }
+
+  .field-input {
+    @apply w-full rounded-2xl border border-espresso-100 bg-cream-50 px-4 py-3 text-sm text-stone-950 shadow-sm transition focus:border-espresso-300 focus:ring-4 focus:ring-espresso-100/60;
+  }
+
+  .field-help {
+    @apply mt-2 text-xs text-espresso-600;
+  }
+
+  .primary-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-espresso-800 px-4 py-3 text-sm font-semibold text-white transition hover:bg-espresso-900 disabled:cursor-not-allowed disabled:bg-espresso-300;
+  }
+
+  .secondary-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-espresso-200 bg-white px-4 py-3 text-sm font-semibold text-espresso-800 transition hover:border-espresso-300 hover:bg-cream-50 disabled:cursor-not-allowed disabled:border-espresso-100 disabled:text-espresso-400;
+  }
+
+  .ghost-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium text-espresso-700 transition hover:bg-cream-100 hover:text-espresso-900;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium;
+  }
+}
