@@ -5,14 +5,14 @@ const route = useRoute();
 
 const items = [
   {
-    label: "Stash",
-    to: "/stash",
-    icon: Package2,
-  },
-  {
     label: "Journal",
     to: "/journal",
     icon: Coffee,
+  },
+  {
+    label: "Stash",
+    to: "/stash",
+    icon: Package2,
   },
   {
     label: "Insights",
@@ -24,7 +24,7 @@ const items = [
 
 <template>
   <nav
-    class="fixed inset-x-0 bottom-0 z-20 border-t border-white/70 bg-white/95 px-4 pb-5 pt-3 shadow-[0_-8px_30px_rgba(45,29,23,0.08)] backdrop-blur rounded-t-2xl"
+    class="fixed inset-x-0 bottom-0 z-20 border-t border-cream-100/80 bg-cream-50/95 px-4 pb-5 pt-3 shadow-[0_-8px_30px_rgba(45,29,23,0.08)] backdrop-blur rounded-t-2xl"
   >
     <div class="mx-auto flex max-w-md items-center justify-between gap-2">
       <NuxtLink

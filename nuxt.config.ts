@@ -21,7 +21,7 @@ export default defineNuxtConfig({
       meta: [
         {
           name: "theme-color",
-          content: "#4b3127",
+          content: "#fcfaf7",
         },
         {
           name: "description",
@@ -76,8 +76,8 @@ export default defineNuxtConfig({
       short_name: "BeanStalk",
       description:
         "Offline-first coffee bean tracking for stash, brews, and simple insights.",
-      theme_color: "#4b3127",
-      background_color: "#f7f0e5",
+      theme_color: "#fcfaf7",
+      background_color: "#fcfaf7",
       display: "standalone",
       start_url: appBaseURL,
       scope: appBaseURL,

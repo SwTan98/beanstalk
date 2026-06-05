@@ -1,5 +1,5 @@
 <script setup lang="ts">
-await navigateTo('/stash')
+await navigateTo('/journal')
 </script>
 
 <template />
