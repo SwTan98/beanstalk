@@ -25,7 +25,7 @@ export interface Brew {
   grinder: string
   dose: number
   yield: number
-  brewTime: string
+  brewTime: number
   pours: string
   tastingNotes: string[]
   ratio: number
@@ -50,7 +50,7 @@ export interface BrewDraft {
   grinder: string
   dose: number
   yield: number
-  brewTime: string
+  brewTime: number
   pours: string
   tastingNotes: string[]
 }

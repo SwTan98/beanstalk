@@ -1,18 +1,29 @@
 <script setup lang="ts">
 defineProps<{
-  title: string
-  description: string
-  actionLabel?: string
-  actionTo?: string
-}>()
+  title: string;
+  description: string;
+  actionLabel?: string;
+  actionTo?: string;
+}>();
 </script>
 
 <template>
-  <header class="mb-6 flex items-start justify-between gap-4">
-    <div class="min-w-0">
-      <p class="mb-2 text-sm font-medium uppercase tracking-[0.24em] text-espresso-500">
+  <header class="flex flex-col gap-4">
+    <div class="flex items-center justify-between gap-2 h-10">
+      <p
+        class="text-sm font-medium uppercase tracking-[0.24em] text-espresso-500"
+      >
         BeanStalk
       </p>
+      <NuxtLink
+        v-if="actionLabel && actionTo"
+        :to="actionTo"
+        class="primary-button shrink-0"
+      >
+        {{ actionLabel }}
+      </NuxtLink>
+    </div>
+    <div class="">
       <h1 class="text-3xl font-semibold tracking-tight text-espresso-900">
         {{ title }}
       </h1>
@@ -20,13 +31,5 @@ defineProps<{
         {{ description }}
       </p>
     </div>
-
-    <NuxtLink
-      v-if="actionLabel && actionTo"
-      :to="actionTo"
-      class="primary-button shrink-0"
-    >
-      {{ actionLabel }}
-    </NuxtLink>
   </header>
 </template>

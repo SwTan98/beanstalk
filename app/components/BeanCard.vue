@@ -1,36 +1,46 @@
 <script setup lang="ts">
-import { Archive, AlertTriangle, Bean as BeanIcon } from '@lucide/vue'
-import { formatWeight, isBeanLowStock, valueToDisplayLabel } from '~/utils/domain'
-import type { Bean } from '~/utils/types'
+import { Archive, AlertTriangle, Bean as BeanIcon } from "@lucide/vue";
+import {
+  formatWeight,
+  isBeanLowStock,
+  valueToDisplayLabel,
+} from "~/utils/domain";
+import type { Bean } from "~/utils/types";
 
 defineProps<{
-  bean: Bean
-}>()
+  bean: Bean;
+}>();
 
 defineEmits<{
-  archive: [beanId: string]
-}>()
+  archive: [beanId: string];
+}>();
 </script>
 
 <template>
-  <article class="surface-card px-5 py-5">
-    <div class="flex items-start justify-between gap-4">
-      <div class="min-w-0">
-        <div class="flex items-center gap-2">
-          <div class="rounded-2xl bg-espresso-100 p-2 text-espresso-800">
+  <article class="surface-card overflow-hidden px-5 py-5">
+    <div
+      class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
+    >
+      <div class="min-w-0 flex-1">
+        <div class="flex items-start gap-3">
+          <div
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-espresso-100 text-espresso-800 shadow-inner shadow-white/60"
+          >
             <BeanIcon class="h-4 w-4" />
           </div>
-          <div>
-            <p class="truncate text-lg font-semibold text-espresso-900">
+          <div class="min-w-0">
+            <p
+              class="truncate text-base leading-tight font-semibold text-espresso-900 sm:text-lg"
+            >
               {{ bean.name }}
             </p>
-            <p class="text-sm text-espresso-600">
+            <p class="mt-1 truncate text-sm text-espresso-600">
               {{ bean.roaster }}
             </p>
           </div>
         </div>
 
-        <div class="mt-4 flex flex-wrap gap-2">
+        <div class="mt-3 flex flex-wrap gap-2">
           <span
             v-if="bean.archivedAt"
             class="badge bg-stone-200 text-stone-700"
@@ -53,7 +63,7 @@ defineEmits<{
       <button
         v-if="!bean.archivedAt"
         type="button"
-        class="ghost-button shrink-0"
+        class="ghost-button shrink-0 self-start border border-espresso-200/80 bg-cream-50/80 px-3.5 py-2.5 text-xs font-semibold hover:border-espresso-300 hover:bg-white"
         @click="$emit('archive', bean.id)"
       >
         <Archive class="h-4 w-4" />
@@ -61,36 +71,56 @@ defineEmits<{
       </button>
     </div>
 
-    <dl class="mt-5 grid grid-cols-2 gap-3 text-sm">
-      <div class="rounded-2xl bg-cream-50 px-3 py-3">
-        <dt class="text-espresso-500">
+    <dl class="mt-5 grid grid-cols-1 xs:grid-cols-2 gap-3 text-sm">
+      <div
+        class="min-w-0 rounded-2xl border border-cream-100 bg-cream-50 px-3.5 py-3"
+      >
+        <dt
+          class="text-xs font-medium uppercase tracking-[0.08em] text-espresso-500"
+        >
           Origin
         </dt>
-        <dd class="mt-1 font-medium text-espresso-900">
+        <dd
+          class="mt-1.5 break-words text-sm font-semibold leading-5 text-espresso-900"
+        >
           {{ bean.origin }}
         </dd>
       </div>
-      <div class="rounded-2xl bg-cream-50 px-3 py-3">
-        <dt class="text-espresso-500">
+      <div
+        class="min-w-0 rounded-2xl border border-cream-100 bg-cream-50 px-3.5 py-3"
+      >
+        <dt
+          class="text-xs font-medium uppercase tracking-[0.08em] text-espresso-500"
+        >
           Process
         </dt>
-        <dd class="mt-1 font-medium text-espresso-900">
+        <dd
+          class="mt-1.5 break-words text-sm font-semibold leading-5 text-espresso-900"
+        >
           {{ bean.process }}
         </dd>
       </div>
-      <div class="rounded-2xl bg-cream-50 px-3 py-3">
-        <dt class="text-espresso-500">
+      <div
+        class="min-w-0 rounded-2xl border border-cream-100 bg-espresso-50 px-3.5 py-3"
+      >
+        <dt
+          class="text-xs font-medium uppercase tracking-[0.08em] text-espresso-500"
+        >
           Remaining
         </dt>
-        <dd class="mt-1 font-medium text-espresso-900">
+        <dd class="mt-1.5 text-base font-semibold leading-5 text-espresso-900">
           {{ formatWeight(bean.remaining) }}
         </dd>
       </div>
-      <div class="rounded-2xl bg-cream-50 px-3 py-3">
-        <dt class="text-espresso-500">
+      <div
+        class="min-w-0 rounded-2xl border border-cream-100 bg-cream-50 px-3.5 py-3"
+      >
+        <dt
+          class="text-xs font-medium uppercase tracking-[0.08em] text-espresso-500"
+        >
           Threshold
         </dt>
-        <dd class="mt-1 font-medium text-espresso-900">
+        <dd class="mt-1.5 text-base font-semibold leading-5 text-espresso-900">
           {{ formatWeight(bean.threshold) }}
         </dd>
       </div>

@@ -19,6 +19,7 @@
   --color-amber-500: #d38b17;
   --color-coral-100: #f8d5d1;
   --color-coral-500: #d35f53;
+  --breakpoint-xs: 20rem;
 }
 
 @layer base {

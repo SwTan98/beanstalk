@@ -1,4 +1,5 @@
 import type { DBSchema, IDBPDatabase } from 'idb'
+import { parseDurationSeconds } from '~/utils/domain'
 import type { Bean, Brew } from '~/utils/types'
 
 interface BeanstalkDatabase extends DBSchema {
@@ -24,6 +25,13 @@ const DATABASE_NAME = 'beanstalk'
 const DATABASE_VERSION = 1
 
 let databasePromise: Promise<IDBPDatabase<BeanstalkDatabase>> | null = null
+
+function normalizeBrew(brew: Brew): Brew {
+  return {
+    ...brew,
+    brewTime: parseDurationSeconds(brew.brewTime)
+  }
+}
 
 async function getDatabase() {
   if (!import.meta.client) {
@@ -93,12 +101,13 @@ export async function archiveBean(beanId: string, archivedAt: string) {
 
 export async function listBrews() {
   const database = await getDatabase()
-  return database.getAll('brews')
+  return (await database.getAll('brews')).map(normalizeBrew)
 }
 
 export async function getBrew(brewId: string) {
   const database = await getDatabase()
-  return database.get('brews', brewId)
+  const brew = await database.get('brews', brewId)
+  return brew ? normalizeBrew(brew) : brew
 }
 
 export async function createBrewWithBeanUpdate(brew: Brew) {
@@ -127,7 +136,7 @@ export async function createBrewWithBeanUpdate(brew: Brew) {
   }
 
   await beanStore.put(updatedBean)
-  await brewStore.put(brew)
+  await brewStore.put(normalizeBrew(brew))
   await transaction.done
 
   return {
@@ -172,7 +181,7 @@ export async function updateBrewWithBeanAdjustments(updatedBrew: Brew) {
     }
 
     await beanStore.put(updatedBean)
-    await brewStore.put(updatedBrew)
+    await brewStore.put(normalizeBrew(updatedBrew))
     await transaction.done
 
     return {
@@ -199,7 +208,7 @@ export async function updateBrewWithBeanAdjustments(updatedBrew: Brew) {
 
   await beanStore.put(restoredPreviousBean)
   await beanStore.put(updatedNextBean)
-  await brewStore.put(updatedBrew)
+  await brewStore.put(normalizeBrew(updatedBrew))
   await transaction.done
 
   return {

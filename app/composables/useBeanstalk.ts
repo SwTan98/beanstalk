@@ -14,6 +14,7 @@ import {
   DEFAULT_BEAN_THRESHOLD,
   getDialingInTip,
   isBeanLowStock,
+  parseDurationSeconds,
   normalizeTastingNotes,
   normalizeText,
   sortBeans,
@@ -142,6 +143,7 @@ export function useBeanstalk() {
     const now = new Date().toISOString()
     const dose = Number(input.dose)
     const yieldAmount = Number(input.yield)
+    const brewTime = parseDurationSeconds(input.brewTime)
 
     if (!input.beanId) {
       throw new Error('Select a bean before saving the brew.')
@@ -155,6 +157,10 @@ export function useBeanstalk() {
       throw new Error('Yield must be greater than 0g.')
     }
 
+    if (brewTime < 0) {
+      throw new Error('Brew time must be 0 seconds or higher.')
+    }
+
     const tastingNotes = normalizeTastingNotes(input.tastingNotes)
 
     return {
@@ -165,7 +171,7 @@ export function useBeanstalk() {
       grinder: normalizeText(input.grinder),
       dose,
       yield: yieldAmount,
-      brewTime: normalizeText(input.brewTime),
+      brewTime,
       pours: normalizeText(input.pours),
       tastingNotes,
       ratio: calculateRatio(dose, yieldAmount),

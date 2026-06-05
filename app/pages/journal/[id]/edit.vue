@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeft } from '@lucide/vue'
+import { parseDurationSeconds } from '~/utils/domain'
 import type { BrewDraft } from '~/utils/types'
 
 const route = useRoute()
@@ -44,7 +45,7 @@ onMounted(async () => {
     grinder: brew.grinder,
     dose: brew.dose,
     yield: brew.yield,
-    brewTime: brew.brewTime,
+    brewTime: parseDurationSeconds(brew.brewTime),
     pours: brew.pours,
     tastingNotes: [...brew.tastingNotes]
   }

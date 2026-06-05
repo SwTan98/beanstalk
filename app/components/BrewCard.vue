@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Pencil, Trash2 } from '@lucide/vue'
-import { formatDateTime, formatRatio, formatWeight, noteToDisplayLabel, valueToDisplayLabel } from '~/utils/domain'
+import { formatDateTime, formatDuration, formatRatio, formatWeight, noteToDisplayLabel, valueToDisplayLabel } from '~/utils/domain'
 import type { Brew } from '~/utils/types'
 
 defineProps<{
@@ -15,38 +15,19 @@ defineEmits<{
 </script>
 
 <template>
-  <article class="surface-card px-5 py-5">
-    <div class="flex items-start justify-between gap-4">
-      <div>
-        <p class="text-lg font-semibold text-espresso-900">
+  <article class="surface-card overflow-hidden px-5 py-5">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-base leading-tight font-semibold text-espresso-900 sm:text-lg">
           {{ beanName }}
         </p>
-        <p class="mt-1 text-sm text-espresso-600">
+        <p class="mt-1 truncate text-sm text-espresso-600">
           {{ formatDateTime(brew.brewedAt) }}
         </p>
       </div>
-
-      <div class="flex items-center gap-1">
-        <button
-          type="button"
-          class="ghost-button"
-          aria-label="Edit brew"
-          @click="$emit('edit', brew.id)"
-        >
-          <Pencil class="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          class="ghost-button text-coral-500 hover:bg-coral-100 hover:text-coral-500"
-          aria-label="Delete brew"
-          @click="$emit('delete', brew.id)"
-        >
-          <Trash2 class="h-4 w-4" />
-        </button>
-      </div>
     </div>
 
-    <div class="mt-4 flex flex-wrap gap-2">
+    <div class="mt-3 flex flex-wrap gap-2">
       <span class="badge bg-espresso-100 text-espresso-800">
         {{ valueToDisplayLabel(brew.method) }}
       </span>
@@ -55,28 +36,49 @@ defineEmits<{
       </span>
     </div>
 
-    <dl class="mt-5 grid grid-cols-3 gap-3 text-sm">
-      <div class="rounded-2xl bg-cream-50 px-3 py-3">
-        <dt class="text-espresso-500">
+    <div class="mt-3 flex flex-wrap gap-2">
+      <button
+        type="button"
+        class="ghost-button"
+        aria-label="Edit brew"
+        @click="$emit('edit', brew.id)"
+      >
+        <Pencil class="h-4 w-4" />
+        <span>Edit</span>
+      </button>
+      <button
+        type="button"
+        class="ghost-button text-coral-500 hover:bg-coral-100 hover:text-coral-500"
+        aria-label="Delete brew"
+        @click="$emit('delete', brew.id)"
+      >
+        <Trash2 class="h-4 w-4" />
+        <span>Delete</span>
+      </button>
+    </div>
+
+    <dl class="mt-5 grid grid-cols-1 xs:grid-cols-2 gap-3 text-sm">
+      <div class="rounded-2xl border border-cream-100 bg-cream-50 px-3.5 py-3">
+        <dt class="text-xs font-medium uppercase tracking-[0.08em] text-espresso-500">
           Dose
         </dt>
-        <dd class="mt-1 font-medium text-espresso-900">
+        <dd class="mt-1.5 text-sm font-semibold leading-5 text-espresso-900">
           {{ formatWeight(brew.dose) }}
         </dd>
       </div>
-      <div class="rounded-2xl bg-cream-50 px-3 py-3">
-        <dt class="text-espresso-500">
+      <div class="rounded-2xl border border-cream-100 bg-cream-50 px-3.5 py-3">
+        <dt class="text-xs font-medium uppercase tracking-[0.08em] text-espresso-500">
           Yield
         </dt>
-        <dd class="mt-1 font-medium text-espresso-900">
+        <dd class="mt-1.5 text-sm font-semibold leading-5 text-espresso-900">
           {{ formatWeight(brew.yield) }}
         </dd>
       </div>
-      <div class="rounded-2xl bg-cream-50 px-3 py-3">
-        <dt class="text-espresso-500">
+      <div class="rounded-2xl border border-cream-100 bg-cream-50 px-3.5 py-3 xs:col-span-2">
+        <dt class="text-xs font-medium uppercase tracking-[0.08em] text-espresso-500">
           Grinder
         </dt>
-        <dd class="mt-1 truncate font-medium text-espresso-900">
+        <dd class="mt-1.5 truncate text-sm font-semibold leading-5 text-espresso-900">
           {{ brew.grinder || '—' }}
         </dd>
       </div>
@@ -84,10 +86,12 @@ defineEmits<{
 
     <div class="mt-4 space-y-3 text-sm text-espresso-700">
       <p v-if="brew.brewTime">
-        <span class="font-medium text-espresso-900">Brew time:</span> {{ brew.brewTime }}
+        <span class="font-medium text-espresso-900">Brew time:</span>
+        {{ formatDuration(brew.brewTime) }}
       </p>
       <p v-if="brew.pours">
-        <span class="font-medium text-espresso-900">Pours:</span> {{ brew.pours }}
+        <span class="font-medium text-espresso-900">Pours:</span>
+        {{ brew.pours }}
       </p>
 
       <div v-if="brew.tastingNotes.length" class="flex flex-wrap gap-2">

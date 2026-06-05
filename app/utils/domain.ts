@@ -32,15 +32,19 @@ export function calculateRatio(dose: number, yieldAmount: number) {
   return roundToSingleDecimal(yieldAmount / dose)
 }
 
-export function normalizeText(value: string) {
-  return value.trim()
+export function normalizeText(value: unknown) {
+  if (value === null || value === undefined) {
+    return ''
+  }
+
+  return String(value).trim()
 }
 
-export function normalizeNote(value: string) {
+export function normalizeNote(value: unknown) {
   return normalizeText(value).toLowerCase()
 }
 
-export function normalizeTastingNotes(notes: string[]) {
+export function normalizeTastingNotes(notes: unknown[]) {
   const normalized = new Set<string>()
 
   for (const note of notes) {
@@ -72,6 +76,46 @@ export function formatWeight(value: number) {
 
 export function formatRatio(value: number) {
   return `1:${value.toFixed(1)}`
+}
+
+export function formatDuration(value: number) {
+  const totalSeconds = Math.max(0, Math.round(value))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+
+  if (minutes === 0) {
+    return `${seconds}s`
+  }
+
+  return `${minutes}m ${seconds.toString().padStart(2, '0')}s`
+}
+
+export function parseDurationSeconds(value: unknown) {
+  if (typeof value === 'number') {
+    return value
+  }
+
+  if (value === null || value === undefined) {
+    return 0
+  }
+
+  const trimmed = String(value).trim()
+
+  if (!trimmed) {
+    return 0
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    return Number(trimmed)
+  }
+
+  const [minutes, seconds] = trimmed.split(':')
+
+  if (seconds === undefined) {
+    return Number(trimmed)
+  }
+
+  return Number(minutes) * 60 + Number(seconds)
 }
 
 export function formatDateTime(value: string) {
