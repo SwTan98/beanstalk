@@ -1,43 +1,82 @@
-import type { DBSchema, IDBPDatabase } from 'idb'
+import type { IDBPDatabase } from 'idb'
 import { normalizeText, parseDurationSeconds } from '~/utils/domain'
 import type { Bean, Brew } from '~/utils/types'
-
-interface BeanstalkDatabase extends DBSchema {
-  beans: {
-    key: string
-    value: Bean
-    indexes: {
-      'by-updated-at': string
-      'by-archived-at': string | null
-    }
-  }
-  brews: {
-    key: string
-    value: Brew
-    indexes: {
-      'by-brewed-at': string
-      'by-bean-id': string
-    }
-  }
-}
-
-const DATABASE_NAME = 'beanstalk'
-const DATABASE_VERSION = 1
+import {
+  DATABASE_NAME,
+  DATABASE_VERSION,
+  SCHEMA_VERSION_KEY,
+  STORAGE_SCHEMA_VERSION,
+  type BeanstalkDatabase,
+  type StoredBean,
+  type StoredBrew
+} from '~/utils/storage-schema'
+import { applyDatabaseUpgradeSteps } from '~/utils/storage-upgrades'
 
 let databasePromise: Promise<IDBPDatabase<BeanstalkDatabase>> | null = null
 
-function normalizeBrew(brew: Brew): Brew {
+function brewFromStorage(brew: StoredBrew): Brew {
   return {
     ...brew,
     brewTime: parseDurationSeconds(brew.brewTime)
   }
 }
 
-function normalizeBean(bean: Bean): Bean {
+function brewToStorage(brew: Brew): StoredBrew {
+  return {
+    ...brew,
+    brewTime: parseDurationSeconds(brew.brewTime)
+  }
+}
+
+function beanFromStorage(bean: StoredBean): Bean {
   return {
     ...bean,
     region: normalizeText(bean.region),
     varietal: normalizeText(bean.varietal)
+  }
+}
+
+function beanToStorage(bean: Bean): StoredBean {
+  return {
+    ...bean,
+    region: normalizeText(bean.region),
+    varietal: normalizeText(bean.varietal)
+  }
+}
+
+async function migrateToSchemaVersion1(database: IDBPDatabase<BeanstalkDatabase>) {
+  const transaction = database.transaction(['beans', 'brews', 'meta'], 'readwrite')
+  const beanStore = transaction.objectStore('beans')
+  const brewStore = transaction.objectStore('brews')
+  const metaStore = transaction.objectStore('meta')
+  const storedBeans = await beanStore.getAll()
+  const storedBrews = await brewStore.getAll()
+
+  for (const storedBean of storedBeans) {
+    await beanStore.put(beanToStorage(beanFromStorage(storedBean)))
+  }
+
+  for (const storedBrew of storedBrews) {
+    await brewStore.put(brewToStorage(brewFromStorage(storedBrew)))
+  }
+
+  await metaStore.put({
+    key: SCHEMA_VERSION_KEY,
+    value: STORAGE_SCHEMA_VERSION
+  })
+  await transaction.done
+}
+
+async function ensureSchemaCompatibility(database: IDBPDatabase<BeanstalkDatabase>) {
+  const schemaVersion = await database.get('meta', SCHEMA_VERSION_KEY)
+  const persistedVersion = schemaVersion?.value ?? 0
+
+  if (persistedVersion >= STORAGE_SCHEMA_VERSION) {
+    return
+  }
+
+  if (persistedVersion < 1) {
+    await migrateToSchemaVersion1(database)
   }
 }
 
@@ -47,23 +86,16 @@ async function getDatabase() {
   }
 
   if (!databasePromise) {
-    databasePromise = import('idb').then(({ openDB }) =>
-      openDB<BeanstalkDatabase>(DATABASE_NAME, DATABASE_VERSION, {
-        upgrade(database) {
-          const beanStore = database.createObjectStore('beans', {
-            keyPath: 'id'
-          })
-          beanStore.createIndex('by-updated-at', 'updatedAt')
-          beanStore.createIndex('by-archived-at', 'archivedAt')
-
-          const brewStore = database.createObjectStore('brews', {
-            keyPath: 'id'
-          })
-          brewStore.createIndex('by-brewed-at', 'brewedAt')
-          brewStore.createIndex('by-bean-id', 'beanId')
+    databasePromise = import('idb').then(async ({ openDB }) => {
+      const database = await openDB<BeanstalkDatabase>(DATABASE_NAME, DATABASE_VERSION, {
+        upgrade(upgradingDatabase, oldVersion) {
+          applyDatabaseUpgradeSteps(upgradingDatabase, oldVersion)
         }
       })
-    )
+
+      await ensureSchemaCompatibility(database)
+      return database
+    })
   }
 
   return databasePromise
@@ -71,52 +103,54 @@ async function getDatabase() {
 
 export async function listBeans() {
   const database = await getDatabase()
-  return (await database.getAll('beans')).map(normalizeBean)
+  return (await database.getAll('beans')).map(beanFromStorage)
 }
 
 export async function getBean(beanId: string) {
   const database = await getDatabase()
   const bean = await database.get('beans', beanId)
-  return bean ? normalizeBean(bean) : bean
+  return bean ? beanFromStorage(bean) : bean
 }
 
 export async function saveBean(bean: Bean) {
   const database = await getDatabase()
   const transaction = database.transaction('beans', 'readwrite')
-  await transaction.store.put(normalizeBean(bean))
+  const storedBean = beanToStorage(bean)
+  await transaction.store.put(storedBean)
   await transaction.done
-  return normalizeBean(bean)
+  return beanFromStorage(storedBean)
 }
 
 export async function archiveBean(beanId: string, archivedAt: string) {
   const database = await getDatabase()
   const transaction = database.transaction('beans', 'readwrite')
-  const bean = await transaction.store.get(beanId)
+  const storedBean = await transaction.store.get(beanId)
 
-  if (!bean) {
+  if (!storedBean) {
     throw new Error('Bean not found.')
   }
 
+  const bean = beanFromStorage(storedBean)
   const updatedBean: Bean = {
-    ...normalizeBean(bean),
+    ...bean,
     archivedAt,
     updatedAt: archivedAt
   }
 
-  await transaction.store.put(updatedBean)
+  await transaction.store.put(beanToStorage(updatedBean))
   await transaction.done
   return updatedBean
 }
 
 export async function listBrews() {
   const database = await getDatabase()
-  return (await database.getAll('brews')).map(normalizeBrew)
+  return (await database.getAll('brews')).map(brewFromStorage)
 }
 
 export async function getBrew(brewId: string) {
   const database = await getDatabase()
   const brew = await database.get('brews', brewId)
-  return brew ? normalizeBrew(brew) : brew
+  return brew ? brewFromStorage(brew) : brew
 }
 
 export async function createBrewWithBeanUpdate(brew: Brew) {
@@ -124,11 +158,13 @@ export async function createBrewWithBeanUpdate(brew: Brew) {
   const transaction = database.transaction(['beans', 'brews'], 'readwrite')
   const beanStore = transaction.objectStore('beans')
   const brewStore = transaction.objectStore('brews')
-  const bean = await beanStore.get(brew.beanId)
+  const storedBean = await beanStore.get(brew.beanId)
 
-  if (!bean) {
+  if (!storedBean) {
     throw new Error('Selected bean could not be found.')
   }
+
+  const bean = beanFromStorage(storedBean)
 
   if (bean.archivedAt) {
     throw new Error('Archived beans cannot be used for new brews.')
@@ -139,18 +175,19 @@ export async function createBrewWithBeanUpdate(brew: Brew) {
   }
 
   const updatedBean: Bean = {
-    ...normalizeBean(bean),
+    ...bean,
     remaining: bean.remaining - brew.dose,
     updatedAt: brew.updatedAt
   }
+  const normalizedBrew = brewFromStorage(brewToStorage(brew))
 
-  await beanStore.put(updatedBean)
-  await brewStore.put(normalizeBrew(brew))
+  await beanStore.put(beanToStorage(updatedBean))
+  await brewStore.put(brewToStorage(normalizedBrew))
   await transaction.done
 
   return {
     bean: updatedBean,
-    brew
+    brew: normalizedBrew
   }
 }
 
@@ -159,18 +196,23 @@ export async function updateBrewWithBeanAdjustments(updatedBrew: Brew) {
   const transaction = database.transaction(['beans', 'brews'], 'readwrite')
   const beanStore = transaction.objectStore('beans')
   const brewStore = transaction.objectStore('brews')
-  const existingBrew = await brewStore.get(updatedBrew.id)
+  const storedExistingBrew = await brewStore.get(updatedBrew.id)
 
-  if (!existingBrew) {
+  if (!storedExistingBrew) {
     throw new Error('Brew not found.')
   }
 
-  const previousBean = await beanStore.get(existingBrew.beanId)
-  const nextBean = await beanStore.get(updatedBrew.beanId)
+  const existingBrew = brewFromStorage(storedExistingBrew)
+  const storedPreviousBean = await beanStore.get(existingBrew.beanId)
+  const storedNextBean = await beanStore.get(updatedBrew.beanId)
 
-  if (!previousBean || !nextBean) {
+  if (!storedPreviousBean || !storedNextBean) {
     throw new Error('Bean data for this brew is missing.')
   }
+
+  const previousBean = beanFromStorage(storedPreviousBean)
+  const nextBean = beanFromStorage(storedNextBean)
+  const normalizedUpdatedBrew = brewFromStorage(brewToStorage(updatedBrew))
 
   if (nextBean.archivedAt && existingBrew.beanId !== updatedBrew.beanId) {
     throw new Error('Archived beans cannot be used for new brews.')
@@ -184,23 +226,23 @@ export async function updateBrewWithBeanAdjustments(updatedBrew: Brew) {
     }
 
     const updatedBean: Bean = {
-      ...normalizeBean(nextBean),
+      ...nextBean,
       remaining: available - updatedBrew.dose,
       updatedAt: updatedBrew.updatedAt
     }
 
-    await beanStore.put(updatedBean)
-    await brewStore.put(normalizeBrew(updatedBrew))
+    await beanStore.put(beanToStorage(updatedBean))
+    await brewStore.put(brewToStorage(normalizedUpdatedBrew))
     await transaction.done
 
     return {
       updatedBeans: [updatedBean],
-      brew: updatedBrew
+      brew: normalizedUpdatedBrew
     }
   }
 
   const restoredPreviousBean: Bean = {
-    ...normalizeBean(previousBean),
+    ...previousBean,
     remaining: previousBean.remaining + existingBrew.dose,
     updatedAt: updatedBrew.updatedAt
   }
@@ -210,19 +252,19 @@ export async function updateBrewWithBeanAdjustments(updatedBrew: Brew) {
   }
 
   const updatedNextBean: Bean = {
-    ...normalizeBean(nextBean),
+    ...nextBean,
     remaining: nextBean.remaining - updatedBrew.dose,
     updatedAt: updatedBrew.updatedAt
   }
 
-  await beanStore.put(restoredPreviousBean)
-  await beanStore.put(updatedNextBean)
-  await brewStore.put(normalizeBrew(updatedBrew))
+  await beanStore.put(beanToStorage(restoredPreviousBean))
+  await beanStore.put(beanToStorage(updatedNextBean))
+  await brewStore.put(brewToStorage(normalizedUpdatedBrew))
   await transaction.done
 
   return {
     updatedBeans: [restoredPreviousBean, updatedNextBean],
-    brew: updatedBrew
+    brew: normalizedUpdatedBrew
   }
 }
 
@@ -231,25 +273,27 @@ export async function deleteBrewWithBeanRestore(brewId: string) {
   const transaction = database.transaction(['beans', 'brews'], 'readwrite')
   const beanStore = transaction.objectStore('beans')
   const brewStore = transaction.objectStore('brews')
-  const brew = await brewStore.get(brewId)
+  const storedBrew = await brewStore.get(brewId)
 
-  if (!brew) {
+  if (!storedBrew) {
     throw new Error('Brew not found.')
   }
 
+  const brew = brewFromStorage(storedBrew)
   const bean = await beanStore.get(brew.beanId)
 
   if (!bean) {
     throw new Error('Linked bean could not be found.')
   }
 
+  const normalizedBean = beanFromStorage(bean)
   const updatedBean: Bean = {
-    ...normalizeBean(bean),
-    remaining: Math.min(bean.startWeight, bean.remaining + brew.dose),
+    ...normalizedBean,
+    remaining: Math.min(normalizedBean.startWeight, normalizedBean.remaining + brew.dose),
     updatedAt: new Date().toISOString()
   }
 
-  await beanStore.put(updatedBean)
+  await beanStore.put(beanToStorage(updatedBean))
   await brewStore.delete(brewId)
   await transaction.done
 
