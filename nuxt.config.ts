@@ -28,6 +28,24 @@ export default defineNuxtConfig({
           content:
             "Offline-first coffee bean tracking for stash, brews, and simple insights.",
         },
+        {
+          name: "apple-mobile-web-app-capable",
+          content: "yes",
+        },
+        {
+          name: "apple-mobile-web-app-status-bar-style",
+          content: "default",
+        },
+        {
+          name: "apple-mobile-web-app-title",
+          content: "BeanStalk",
+        },
+      ],
+      link: [
+        {
+          rel: "apple-touch-icon",
+          href: withBase("pwa-192x192.png"),
+        },
       ],
     },
   },
