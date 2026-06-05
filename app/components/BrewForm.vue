@@ -116,7 +116,7 @@ function submitForm() {
         <select id="beanId" v-model="draft.beanId" class="field-input">
           <option value="">Select a bean</option>
           <option v-for="bean in beans" :key="bean.id" :value="bean.id">
-            {{ bean.name }} · {{ bean.remaining }}g left
+            {{ bean.name }}{{ bean.region ? ` · ${bean.region}` : "" }}{{ bean.varietal ? ` · ${bean.varietal}` : "" }} · {{ bean.remaining }}g left
           </option>
         </select>
         <p class="field-help">

@@ -5,6 +5,8 @@ export interface Bean {
   name: string
   roaster: string
   origin: string
+  region: string
+  varietal: string
   process: string
   roastProfile: RoastProfile
   startWeight: number
@@ -37,6 +39,8 @@ export interface BeanDraft {
   name: string
   roaster: string
   origin: string
+  region: string
+  varietal: string
   process: string
   roastProfile: RoastProfile
   startWeight: number

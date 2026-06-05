@@ -1,5 +1,5 @@
 import type { DBSchema, IDBPDatabase } from 'idb'
-import { parseDurationSeconds } from '~/utils/domain'
+import { normalizeText, parseDurationSeconds } from '~/utils/domain'
 import type { Bean, Brew } from '~/utils/types'
 
 interface BeanstalkDatabase extends DBSchema {
@@ -33,6 +33,14 @@ function normalizeBrew(brew: Brew): Brew {
   }
 }
 
+function normalizeBean(bean: Bean): Bean {
+  return {
+    ...bean,
+    region: normalizeText(bean.region),
+    varietal: normalizeText(bean.varietal)
+  }
+}
+
 async function getDatabase() {
   if (!import.meta.client) {
     throw new Error('IndexedDB is only available in the browser.')
@@ -63,20 +71,21 @@ async function getDatabase() {
 
 export async function listBeans() {
   const database = await getDatabase()
-  return database.getAll('beans')
+  return (await database.getAll('beans')).map(normalizeBean)
 }
 
 export async function getBean(beanId: string) {
   const database = await getDatabase()
-  return database.get('beans', beanId)
+  const bean = await database.get('beans', beanId)
+  return bean ? normalizeBean(bean) : bean
 }
 
 export async function saveBean(bean: Bean) {
   const database = await getDatabase()
   const transaction = database.transaction('beans', 'readwrite')
-  await transaction.store.put(bean)
+  await transaction.store.put(normalizeBean(bean))
   await transaction.done
-  return bean
+  return normalizeBean(bean)
 }
 
 export async function archiveBean(beanId: string, archivedAt: string) {
@@ -89,7 +98,7 @@ export async function archiveBean(beanId: string, archivedAt: string) {
   }
 
   const updatedBean: Bean = {
-    ...bean,
+    ...normalizeBean(bean),
     archivedAt,
     updatedAt: archivedAt
   }
@@ -130,7 +139,7 @@ export async function createBrewWithBeanUpdate(brew: Brew) {
   }
 
   const updatedBean: Bean = {
-    ...bean,
+    ...normalizeBean(bean),
     remaining: bean.remaining - brew.dose,
     updatedAt: brew.updatedAt
   }
@@ -175,7 +184,7 @@ export async function updateBrewWithBeanAdjustments(updatedBrew: Brew) {
     }
 
     const updatedBean: Bean = {
-      ...nextBean,
+      ...normalizeBean(nextBean),
       remaining: available - updatedBrew.dose,
       updatedAt: updatedBrew.updatedAt
     }
@@ -191,7 +200,7 @@ export async function updateBrewWithBeanAdjustments(updatedBrew: Brew) {
   }
 
   const restoredPreviousBean: Bean = {
-    ...previousBean,
+    ...normalizeBean(previousBean),
     remaining: previousBean.remaining + existingBrew.dose,
     updatedAt: updatedBrew.updatedAt
   }
@@ -201,7 +210,7 @@ export async function updateBrewWithBeanAdjustments(updatedBrew: Brew) {
   }
 
   const updatedNextBean: Bean = {
-    ...nextBean,
+    ...normalizeBean(nextBean),
     remaining: nextBean.remaining - updatedBrew.dose,
     updatedAt: updatedBrew.updatedAt
   }
@@ -235,7 +244,7 @@ export async function deleteBrewWithBeanRestore(brewId: string) {
   }
 
   const updatedBean: Bean = {
-    ...bean,
+    ...normalizeBean(bean),
     remaining: Math.min(bean.startWeight, bean.remaining + brew.dose),
     updatedAt: new Date().toISOString()
   }

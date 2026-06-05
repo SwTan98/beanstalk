@@ -101,6 +101,34 @@ defineEmits<{
         </dd>
       </div>
       <div
+        class="min-w-0 rounded-2xl border border-cream-100 bg-cream-50 px-3.5 py-3"
+      >
+        <dt
+          class="text-xs font-medium uppercase tracking-[0.08em] text-espresso-500"
+        >
+          Region
+        </dt>
+        <dd
+          class="mt-1.5 break-words text-sm font-semibold leading-5 text-espresso-900"
+        >
+          {{ bean.region || "—" }}
+        </dd>
+      </div>
+      <div
+        class="min-w-0 rounded-2xl border border-cream-100 bg-cream-50 px-3.5 py-3"
+      >
+        <dt
+          class="text-xs font-medium uppercase tracking-[0.08em] text-espresso-500"
+        >
+          Varietal
+        </dt>
+        <dd
+          class="mt-1.5 break-words text-sm font-semibold leading-5 text-espresso-900"
+        >
+          {{ bean.varietal || "—" }}
+        </dd>
+      </div>
+      <div
         class="min-w-0 rounded-2xl border border-cream-100 bg-espresso-50 px-3.5 py-3"
       >
         <dt

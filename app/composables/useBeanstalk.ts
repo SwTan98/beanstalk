@@ -111,6 +111,8 @@ export function useBeanstalk() {
       name: normalizeText(input.name),
       roaster: normalizeText(input.roaster),
       origin: normalizeText(input.origin),
+      region: normalizeText(input.region),
+      varietal: normalizeText(input.varietal),
       process: normalizeText(input.process),
       roastProfile: input.roastProfile,
       startWeight,

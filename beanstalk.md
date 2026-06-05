@@ -60,6 +60,8 @@ interface Bean {
   name: string
   roaster: string
   origin: string
+  region: string
+  varietal: string
   process: string
   roastProfile: RoastProfile
   startWeight: number
@@ -96,6 +98,8 @@ interface Brew {
 ### Domain defaults
 
 - **Bean threshold default:** `30`
+- **Region** should store the growing area as a human-readable string, such as `Guji`, `Sidamo`, or `Huehuetenango`
+- **Varietal** should store the cultivar or blend descriptor, such as `Heirloom`, `Bourbon`, or `Caturra`
 - **Remaining** is stored, not only derived, so list screens remain cheap to render offline
 - **Ratio** is stored at save time as `yield / dose`, while also being easy to recompute in forms
 - **Archived beans** remain available for historical brew references but cannot be selected for new brews
@@ -108,6 +112,7 @@ These rules should be centralized in composables or domain helpers, not spread a
 
 - `startWeight` must be greater than `0`
 - `threshold` must be `>= 0` and should default to `30`
+- `region` and `varietal` must be non-empty strings
 - `remaining` must stay between `0` and `startWeight`
 - Archiving a bean sets `archivedAt`; it does not delete the bean or its brew history
 
@@ -179,13 +184,14 @@ An explicit offline HTML fallback is optional, but the generated app shell and I
 - Route: `/stash`
 - Shows active beans first, archived beans second
 - Provides a primary action to add a bean
-- Displays bean cards with name, roaster, origin, process, roast profile, remaining, and threshold state
+- Displays bean cards with name, roaster, origin, region, varietal, process, roast profile, remaining, and threshold state
 - Surfaces low-stock beans prominently when `remaining <= threshold`
 
 ### New bean
 
 - Route: `/stash/new`
 - Collects bean details with mobile-friendly form controls
+- Includes dedicated inputs for origin, region, varietal, and process so a bean like `Ethiopia Guji Heirloom` can be represented cleanly
 - Uses a roast profile selector mapped to the typed enum values
 - Saves immediately to local persistence and returns to stash
 

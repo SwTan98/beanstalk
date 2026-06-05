@@ -10,6 +10,8 @@ const draft = reactive({
   name: '',
   roaster: '',
   origin: '',
+  region: '',
+  varietal: '',
   process: '',
   roastProfile: 'medium' as RoastProfile,
   startWeight: 250,
@@ -66,6 +68,18 @@ async function submitForm() {
           <div>
             <label class="field-label" for="origin">Origin</label>
             <input id="origin" v-model="draft.origin" type="text" class="field-input" placeholder="Ethiopia">
+          </div>
+
+          <div>
+            <label class="field-label" for="region">Region</label>
+            <input id="region" v-model="draft.region" type="text" class="field-input" placeholder="Guji">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="field-label" for="varietal">Varietal</label>
+            <input id="varietal" v-model="draft.varietal" type="text" class="field-input" placeholder="Heirloom">
           </div>
 
           <div>
