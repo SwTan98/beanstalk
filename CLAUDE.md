@@ -17,6 +17,7 @@ Use `pnpm` (a `pnpm-lock.yaml` is committed).
 | Build (server) | `pnpm build` | Produces Nitro output in `.output/`. |
 | Generate static site | `pnpm generate` | Static output in `.output/public`; this is the deployment target (see below). |
 | Preview production build | `pnpm preview` | Runs the built app locally. |
+| Run the built server directly | `node .output/server/index.mjs` | Matches the current Nitro `node-server` output. |
 
 There are no test or lint scripts defined in `package.json` — do not assume `pnpm test`/`pnpm lint` exist. When verifying changes, run `pnpm dev` (or `pnpm generate`) and check the app in a browser.
 
@@ -53,4 +54,3 @@ Additional structural notes:
 - Code style (see `app/utils/*.ts`): single quotes, no semicolons, 2-space indent. `nuxt.config.ts` (project root) uses double quotes/semicolons — match whichever file you're editing.
 - `tsconfig.json` only references generated `.nuxt/tsconfig.*.json` files — don't hand-roll a separate TS config; rely on Nuxt's generated project references.
 - Don't edit generated output: `.nuxt/`, `.output/`, `.data`, `.nitro`, `.cache`, `dist`, `node_modules`.
-- `.github/copilot-instructions.md` describes an earlier, pre-implementation state of this repo (says the app is "still minimal" with only `app.vue`) — it is stale; this file supersedes it.
