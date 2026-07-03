@@ -87,7 +87,7 @@ async function submitForm(value: BrewDraft) {
     </div>
 
     <template v-else>
-      <p v-if="errorMessage" class="rounded-2xl bg-coral-100 px-4 py-3 text-sm text-coral-500">
+      <p v-if="errorMessage" class="rounded-2xl bg-coral-100 px-4 py-3 text-sm text-coral-600">
         {{ errorMessage }}
       </p>
 
