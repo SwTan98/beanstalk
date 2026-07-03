@@ -49,7 +49,7 @@ defineEmits<{
           </span>
           <span
             v-else-if="isBeanLowStock(bean)"
-            class="badge bg-amber-100 text-amber-500"
+            class="badge bg-amber-100 text-amber-600"
           >
             <AlertTriangle class="h-3.5 w-3.5" />
             Low stock

@@ -15,10 +15,13 @@
   --color-cream-100: #f7f0e5;
   --color-sage-100: #dcebd8;
   --color-sage-500: #5b8c61;
+  --color-sage-600: #2f5c3a;
   --color-amber-100: #f9e6be;
   --color-amber-500: #d38b17;
+  --color-amber-600: #8a5a0e;
   --color-coral-100: #f8d5d1;
   --color-coral-500: #d35f53;
+  --color-coral-600: #9c3a30;
   --breakpoint-xs: 20rem;
 }
 
@@ -78,11 +81,11 @@
   }
 
   .primary-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-espresso-800 px-4 py-3 text-sm font-semibold text-white transition hover:bg-espresso-900 disabled:cursor-not-allowed disabled:bg-espresso-300;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-espresso-800 px-4 py-3 text-sm font-semibold text-white transition hover:bg-espresso-900 disabled:cursor-not-allowed disabled:bg-espresso-300 disabled:text-espresso-900;
   }
 
   .secondary-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-espresso-200 bg-white px-4 py-3 text-sm font-semibold text-espresso-800 transition hover:border-espresso-300 hover:bg-cream-50 disabled:cursor-not-allowed disabled:border-espresso-100 disabled:text-espresso-400;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-espresso-200 bg-white px-4 py-3 text-sm font-semibold text-espresso-800 transition hover:border-espresso-300 hover:bg-cream-50 disabled:cursor-not-allowed disabled:border-espresso-100 disabled:text-espresso-600;
   }
 
   .ghost-button {

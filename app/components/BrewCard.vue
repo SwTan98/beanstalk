@@ -31,7 +31,7 @@ defineEmits<{
       <span class="badge bg-espresso-100 text-espresso-800">
         {{ valueToDisplayLabel(brew.method) }}
       </span>
-      <span class="badge bg-sage-100 text-sage-500">
+      <span class="badge bg-sage-100 text-sage-600">
         {{ formatRatio(brew.ratio) }}
       </span>
     </div>
@@ -48,7 +48,7 @@ defineEmits<{
       </button>
       <button
         type="button"
-        class="ghost-button text-coral-500 hover:bg-coral-100 hover:text-coral-500"
+        class="ghost-button text-coral-600 hover:bg-coral-100 hover:text-coral-600"
         aria-label="Delete brew"
         @click="$emit('delete', brew.id)"
       >

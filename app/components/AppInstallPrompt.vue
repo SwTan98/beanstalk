@@ -54,7 +54,7 @@ onBeforeUnmount(() => {
     <div class="flex items-start gap-3">
       <div
         class="mt-0.5 rounded-2xl p-2"
-        :class="isOffline ? 'bg-coral-100 text-coral-500' : 'bg-espresso-100 text-espresso-800'"
+        :class="isOffline ? 'bg-coral-100 text-coral-600' : 'bg-espresso-100 text-espresso-800'"
       >
         <WifiOff v-if="isOffline" class="h-4 w-4" />
         <Download v-else class="h-4 w-4" />
