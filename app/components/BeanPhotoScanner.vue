@@ -11,6 +11,7 @@ const {
   stage,
   errorMessage,
   ocrProgress,
+  llmProgress,
   previewUrl,
   imageWidth,
   imageHeight,
@@ -56,6 +57,7 @@ async function onFileSelected(event: Event) {
 }
 
 const ocrProgressPercent = computed(() => Math.round(ocrProgress.value * 100))
+const llmProgressPercent = computed(() => Math.round(llmProgress.value * 100))
 </script>
 
 <template>
@@ -91,8 +93,9 @@ const ocrProgressPercent = computed(() => Math.round(ocrProgress.value * 100))
         </button>
       </div>
       <p class="field-help">
-        We'll try to read the label and fill in fields you haven't already typed. The first scan
-        downloads a one-time toolkit, then works offline.
+        We'll try to read the label and fill in fields you haven't already typed using an
+        on-device AI model where supported. The first scan downloads a one-time toolkit, then
+        works offline.
       </p>
     </div>
 
@@ -126,6 +129,15 @@ const ocrProgressPercent = computed(() => Math.round(ocrProgress.value * 100))
         <span class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-espresso-300 border-t-transparent" />
         <p class="field-help">
           Reading the label… this can take a few seconds ({{ ocrProgressPercent }}%)
+        </p>
+      </div>
+    </div>
+
+    <div v-else-if="stage === 'parsing-fields'" class="space-y-2 py-2">
+      <div class="flex items-center gap-3">
+        <span class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-espresso-300 border-t-transparent" />
+        <p class="field-help">
+          Making sense of the label with on-device AI… ({{ llmProgressPercent }}%)
         </p>
       </div>
     </div>
