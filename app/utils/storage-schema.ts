@@ -15,6 +15,13 @@ export interface StorageMetadataRecord {
   value: number
 }
 
+export interface StoredBeanPhoto {
+  beanId: string
+  photo: Blob
+  contentType: string
+  createdAt: string
+}
+
 export interface BeanstalkDatabase extends DBSchema {
   beans: {
     key: string
@@ -36,9 +43,16 @@ export interface BeanstalkDatabase extends DBSchema {
     key: string
     value: StorageMetadataRecord
   }
+  beanPhotos: {
+    key: string
+    value: StoredBeanPhoto
+    indexes: {
+      'by-created-at': string
+    }
+  }
 }
 
 export const DATABASE_NAME = 'beanstalk'
-export const DATABASE_VERSION = 2
+export const DATABASE_VERSION = 3
 export const STORAGE_SCHEMA_VERSION = 1
 export const SCHEMA_VERSION_KEY = 'schema-version'

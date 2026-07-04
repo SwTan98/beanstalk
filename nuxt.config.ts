@@ -55,6 +55,21 @@ export default defineNuxtConfig({
     optimizeDeps: {
       include: ["@lucide/vue", "idb"],
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (id.includes("@techstark/opencv-js")) {
+              return "opencv";
+            }
+          },
+          chunkFileNames: (chunkInfo) =>
+            chunkInfo.name === "opencv"
+              ? "_nuxt/opencv-[hash].js"
+              : "_nuxt/[hash].js",
+        },
+      },
+    },
   },
   modules: ["@vite-pwa/nuxt"],
   nitro: {
@@ -102,6 +117,27 @@ export default defineNuxtConfig({
     },
     workbox: {
       globPatterns: ["**/*.{html,js,css,ico,png,svg,webmanifest}"],
+      globIgnores: ["**/opencv-*.js", "tesseract/**"],
+      runtimeCaching: [
+        {
+          urlPattern: ({ url }: { url: URL }) => url.pathname.includes("/tesseract/"),
+          handler: "CacheFirst",
+          options: {
+            cacheName: "tesseract-assets",
+            expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            cacheableResponse: { statuses: [0, 200] },
+          },
+        },
+        {
+          urlPattern: ({ url }: { url: URL }) => url.pathname.includes("opencv-"),
+          handler: "CacheFirst",
+          options: {
+            cacheName: "opencv-assets",
+            expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            cacheableResponse: { statuses: [0, 200] },
+          },
+        },
+      ],
     },
     client: {
       installPrompt: true,
