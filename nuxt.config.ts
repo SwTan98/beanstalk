@@ -53,7 +53,7 @@ export default defineNuxtConfig({
   vite: {
     plugins: [tailwindcss()],
     optimizeDeps: {
-      include: ["@lucide/vue", "idb"],
+      include: ["@lucide/vue", "idb", "@techstark/opencv-js", "tesseract.js"],
     },
     build: {
       rollupOptions: {
