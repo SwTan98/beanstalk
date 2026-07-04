@@ -8,6 +8,7 @@ import {
   STORAGE_SCHEMA_VERSION,
   type BeanstalkDatabase,
   type StoredBean,
+  type StoredBeanPhoto,
   type StoredBrew
 } from '~/utils/storage-schema'
 import { applyDatabaseUpgradeSteps } from '~/utils/storage-upgrades'
@@ -140,6 +141,26 @@ export async function archiveBean(beanId: string, archivedAt: string) {
   await transaction.store.put(beanToStorage(updatedBean))
   await transaction.done
   return updatedBean
+}
+
+export async function savePhotoForBean(beanId: string, photo: Blob) {
+  const database = await getDatabase()
+  const transaction = database.transaction('beanPhotos', 'readwrite')
+  const record: StoredBeanPhoto = {
+    beanId,
+    photo,
+    contentType: photo.type || 'image/jpeg',
+    createdAt: new Date().toISOString()
+  }
+  await transaction.store.put(record)
+  await transaction.done
+  return record
+}
+
+export async function getPhotoForBean(beanId: string) {
+  const database = await getDatabase()
+  const record = await database.get('beanPhotos', beanId)
+  return record ?? null
 }
 
 export async function listBrews() {

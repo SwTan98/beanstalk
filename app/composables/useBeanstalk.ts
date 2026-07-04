@@ -6,6 +6,7 @@ import {
   listBeans,
   listBrews,
   saveBean,
+  savePhotoForBean,
   updateBrewWithBeanAdjustments
 } from '~/utils/storage'
 import {
@@ -91,7 +92,7 @@ export function useBeanstalk() {
   const latestBrew = computed(() => recentBrews.value[0] ?? null)
   const dialingInTip = computed(() => getDialingInTip(latestBrew.value))
 
-  async function createBean(input: BeanDraft) {
+  async function createBean(input: BeanDraft, photo?: Blob | null) {
     await ensureHydrated()
 
     const now = new Date().toISOString()
@@ -129,6 +130,15 @@ export function useBeanstalk() {
 
     await saveBean(bean)
     beans.value = sortBeans([bean, ...beans.value])
+
+    if (photo) {
+      try {
+        await savePhotoForBean(bean.id, photo)
+      }
+      catch (error) {
+        console.error('Bean saved, but its photo could not be stored:', error)
+      }
+    }
 
     return bean
   }

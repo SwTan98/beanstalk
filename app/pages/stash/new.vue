@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeft } from '@lucide/vue'
+import type { PhotoScanResult } from '~/composables/usePhotoScan'
 import { DEFAULT_BEAN_THRESHOLD, ROAST_PROFILES } from '~/utils/domain'
 import type { RoastProfile } from '~/utils/types'
 
@@ -18,15 +19,35 @@ const draft = reactive({
   threshold: DEFAULT_BEAN_THRESHOLD
 })
 
+const fieldTouched = reactive({
+  roastProfile: false,
+  startWeight: false
+})
+
+const photoBlob = ref<Blob | null>(null)
+const isScanBusy = ref(false)
 const errorMessage = ref('')
 const isSubmitting = ref(false)
+
+function onPhotoScanned({ parsedFields, photoBlob: scannedPhotoBlob }: PhotoScanResult) {
+  photoBlob.value = scannedPhotoBlob
+
+  if (!draft.name.trim() && parsedFields.name) draft.name = parsedFields.name
+  if (!draft.roaster.trim() && parsedFields.roaster) draft.roaster = parsedFields.roaster
+  if (!draft.origin.trim() && parsedFields.origin) draft.origin = parsedFields.origin
+  if (!draft.region.trim() && parsedFields.region) draft.region = parsedFields.region
+  if (!draft.varietal.trim() && parsedFields.varietal) draft.varietal = parsedFields.varietal
+  if (!draft.process.trim() && parsedFields.process) draft.process = parsedFields.process
+  if (!fieldTouched.roastProfile && parsedFields.roastProfile) draft.roastProfile = parsedFields.roastProfile
+  if (!fieldTouched.startWeight && parsedFields.startWeight) draft.startWeight = parsedFields.startWeight
+}
 
 async function submitForm() {
   errorMessage.value = ''
   isSubmitting.value = true
 
   try {
-    await createBean({ ...draft })
+    await createBean({ ...draft }, photoBlob.value)
     await router.push('/stash')
   }
   catch (error) {
@@ -51,6 +72,8 @@ async function submitForm() {
       title="New bean"
       description="Add a coffee to your stash with its starting weight and low-stock threshold."
     />
+
+    <BeanPhotoScanner @scanned="onPhotoScanned" @busy="isScanBusy = $event" />
 
     <form class="space-y-5" @submit.prevent="submitForm">
       <div class="surface-card space-y-4 px-5 py-5">
@@ -90,7 +113,12 @@ async function submitForm() {
 
         <div>
           <label class="field-label" for="roastProfile">Roast profile</label>
-          <select id="roastProfile" v-model="draft.roastProfile" class="field-input">
+          <select
+            id="roastProfile"
+            v-model="draft.roastProfile"
+            class="field-input"
+            @change="fieldTouched.roastProfile = true"
+          >
             <option
               v-for="profile in ROAST_PROFILES"
               :key="profile.value"
@@ -104,7 +132,15 @@ async function submitForm() {
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="field-label" for="startWeight">Starting weight (g)</label>
-            <input id="startWeight" v-model.number="draft.startWeight" min="0.1" step="0.1" type="number" class="field-input">
+            <input
+              id="startWeight"
+              v-model.number="draft.startWeight"
+              min="0.1"
+              step="0.1"
+              type="number"
+              class="field-input"
+              @input="fieldTouched.startWeight = true"
+            >
           </div>
 
           <div>
@@ -122,7 +158,7 @@ async function submitForm() {
         {{ errorMessage }}
       </p>
 
-      <button type="submit" class="primary-button w-full" :disabled="isSubmitting">
+      <button type="submit" class="primary-button w-full" :disabled="isSubmitting || isScanBusy">
         Save bean
       </button>
     </form>
