@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@lucide/vue": "^1.17.0",
-    "@mlc-ai/web-llm": "0.2.84",
     "@techstark/opencv-js": "5.0.0-release.1",
     "idb": "^8.0.3",
     "nuxt": "^4.4.6",

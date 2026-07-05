@@ -1,6 +1,4 @@
-import { parseBeanLabelWithLlm } from '~/utils/bean-label-llm-parser'
 import { parseBeanLabelText, type ParsedBeanFields } from '~/utils/bean-label-parser'
-import { isLlmSupported } from '~/utils/llm-engine'
 import { recognizeText } from '~/utils/ocr-engine'
 import { detectDocumentCorners, getFallbackCorners, warpPerspective, type Corners } from '~/utils/opencv-perspective'
 
@@ -10,7 +8,6 @@ export type PhotoScanStage =
   | 'detecting-corners'
   | 'adjusting-corners'
   | 'processing-ocr'
-  | 'parsing-fields'
   | 'done'
   | 'error'
 
@@ -66,7 +63,6 @@ export function usePhotoScan() {
   const stage = ref<PhotoScanStage>('idle')
   const errorMessage = ref('')
   const ocrProgress = ref(0)
-  const llmProgress = ref(0)
   const sourceCanvas = ref<HTMLCanvasElement | null>(null)
   const corners = ref<Corners | null>(null)
   const cropSupported = ref(true)
@@ -81,7 +77,6 @@ export function usePhotoScan() {
     stage.value = 'idle'
     errorMessage.value = ''
     ocrProgress.value = 0
-    llmProgress.value = 0
     sourceCanvas.value = null
     corners.value = null
     cropSupported.value = true
@@ -95,30 +90,15 @@ export function usePhotoScan() {
     try {
       const photoBlob = await canvasToJpegBlob(canvas, JPEG_QUALITY)
       let parsedFields = EMPTY_PARSED_FIELDS
-      let text = ''
 
       try {
-        text = await recognizeText(canvas, (value) => {
+        const text = await recognizeText(canvas, (value) => {
           ocrProgress.value = value
         })
         parsedFields = parseBeanLabelText(text)
       }
       catch (error) {
         console.error('OCR failed, continuing without prefilled fields:', error)
-      }
-
-      if (text && isLlmSupported()) {
-        stage.value = 'parsing-fields'
-        llmProgress.value = 0
-
-        try {
-          parsedFields = await parseBeanLabelWithLlm(text, (value) => {
-            llmProgress.value = value
-          })
-        }
-        catch (error) {
-          console.error('On-device LLM parsing failed, falling back to text-pattern results:', error)
-        }
       }
 
       result.value = { parsedFields, photoBlob }
@@ -202,7 +182,6 @@ export function usePhotoScan() {
     stage,
     errorMessage,
     ocrProgress,
-    llmProgress,
     previewUrl,
     imageWidth,
     imageHeight,
