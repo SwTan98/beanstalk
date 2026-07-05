@@ -53,13 +53,7 @@ export default defineNuxtConfig({
   vite: {
     plugins: [tailwindcss()],
     optimizeDeps: {
-      include: [
-        "@lucide/vue",
-        "idb",
-        "@techstark/opencv-js",
-        "tesseract.js",
-        "@mlc-ai/web-llm",
-      ],
+      include: ["@lucide/vue", "idb", "@techstark/opencv-js", "tesseract.js"],
     },
     build: {
       rollupOptions: {
@@ -68,15 +62,11 @@ export default defineNuxtConfig({
             if (id.includes("@techstark/opencv-js")) {
               return "opencv";
             }
-            if (id.includes("@mlc-ai/web-llm")) {
-              return "webllm";
-            }
           },
-          chunkFileNames: (chunkInfo) => {
-            if (chunkInfo.name === "opencv") return "_nuxt/opencv-[hash].js";
-            if (chunkInfo.name === "webllm") return "_nuxt/webllm-[hash].js";
-            return "_nuxt/[hash].js";
-          },
+          chunkFileNames: (chunkInfo) =>
+            chunkInfo.name === "opencv"
+              ? "_nuxt/opencv-[hash].js"
+              : "_nuxt/[hash].js",
         },
       },
     },
@@ -127,7 +117,7 @@ export default defineNuxtConfig({
     },
     workbox: {
       globPatterns: ["**/*.{html,js,css,ico,png,svg,webmanifest}"],
-      globIgnores: ["**/opencv-*.js", "**/webllm-*.js", "tesseract/**"],
+      globIgnores: ["**/opencv-*.js", "tesseract/**"],
       runtimeCaching: [
         {
           urlPattern: ({ url }: { url: URL }) => url.pathname.includes("/tesseract/"),
@@ -143,15 +133,6 @@ export default defineNuxtConfig({
           handler: "CacheFirst",
           options: {
             cacheName: "opencv-assets",
-            expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            cacheableResponse: { statuses: [0, 200] },
-          },
-        },
-        {
-          urlPattern: ({ url }: { url: URL }) => url.pathname.includes("webllm-"),
-          handler: "CacheFirst",
-          options: {
-            cacheName: "webllm-assets",
             expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 * 365 },
             cacheableResponse: { statuses: [0, 200] },
           },
