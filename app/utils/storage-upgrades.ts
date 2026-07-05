@@ -39,18 +39,6 @@ export const BEANSTALK_DATABASE_UPGRADE_STEPS: DatabaseUpgradeStep[] = [
         })
       }
     }
-  },
-  {
-    version: 3,
-    description: 'Create beanPhotos store for scanned bag photos.',
-    apply(database) {
-      if (!database.objectStoreNames.contains('beanPhotos')) {
-        const photoStore = database.createObjectStore('beanPhotos', {
-          keyPath: 'beanId'
-        })
-        photoStore.createIndex('by-created-at', 'createdAt')
-      }
-    }
   }
 ]
 
