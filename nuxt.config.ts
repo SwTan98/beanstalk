@@ -52,8 +52,15 @@ export default defineNuxtConfig({
   css: ["~/assets/css/main.css"],
   vite: {
     plugins: [tailwindcss()],
+    resolve: {
+      alias: [
+        // Force the wasm-only ORT build: the default entry is the WebGPU
+        // (jsep) build, which fetches jsep wasm binaries we don't self-host.
+        { find: /^onnxruntime-web$/, replacement: "onnxruntime-web/wasm" },
+      ],
+    },
     optimizeDeps: {
-      include: ["@lucide/vue", "idb"],
+      include: ["@lucide/vue", "idb", "ppu-paddle-ocr/web", "onnxruntime-web"],
     },
   },
   modules: ["@vite-pwa/nuxt"],
@@ -102,6 +109,10 @@ export default defineNuxtConfig({
     },
     workbox: {
       globPatterns: ["**/*.{html,js,css,ico,png,svg,webmanifest}"],
+      // The OCR models/wasm (~43 MB) must never be precached with the app
+      // shell; ocr-engine.ts fetches them lazily on first scan and stores
+      // them itself via the Cache API (beanstalk-ocr-v1).
+      globIgnores: ["ocr/**"],
     },
     client: {
       installPrompt: true,

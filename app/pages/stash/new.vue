@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeft } from '@lucide/vue'
+import type { ParsedBeanFields } from '~/utils/bean-label-parser'
 import { DEFAULT_BEAN_THRESHOLD, ROAST_PROFILES } from '~/utils/domain'
 import type { RoastProfile } from '~/utils/types'
 
@@ -18,8 +19,22 @@ const draft = reactive({
   threshold: DEFAULT_BEAN_THRESHOLD
 })
 
+const isScanBusy = ref(false)
 const errorMessage = ref('')
 const isSubmitting = ref(false)
+
+// A scan replaces the whole form: scannable fields reset to their defaults,
+// then everything the parser found is applied. Threshold is never scanned.
+function onPhotoScanned(parsedFields: ParsedBeanFields) {
+  draft.name = parsedFields.name ?? ''
+  draft.roaster = parsedFields.roaster ?? ''
+  draft.origin = parsedFields.origin ?? ''
+  draft.region = parsedFields.region ?? ''
+  draft.varietal = parsedFields.varietal ?? ''
+  draft.process = parsedFields.process ?? ''
+  draft.roastProfile = parsedFields.roastProfile ?? 'medium'
+  draft.startWeight = parsedFields.startWeight ?? 250
+}
 
 async function submitForm() {
   errorMessage.value = ''
@@ -51,6 +66,8 @@ async function submitForm() {
       title="New bean"
       description="Add a coffee to your stash with its starting weight and low-stock threshold."
     />
+
+    <BeanPhotoScanner @scanned="onPhotoScanned" @busy="isScanBusy = $event" />
 
     <form class="space-y-5" @submit.prevent="submitForm">
       <div class="surface-card space-y-4 px-5 py-5">
@@ -122,7 +139,7 @@ async function submitForm() {
         {{ errorMessage }}
       </p>
 
-      <button type="submit" class="primary-button w-full" :disabled="isSubmitting">
+      <button type="submit" class="primary-button w-full" :disabled="isSubmitting || isScanBusy">
         Save bean
       </button>
     </form>
