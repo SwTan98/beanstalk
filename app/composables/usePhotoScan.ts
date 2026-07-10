@@ -1,4 +1,4 @@
-import { parseBeanLabel, type ParsedBeanFields } from '~/utils/bean-label-parser'
+import { parseBeanLabel, type LabelParseResult } from '~/utils/bean-label-parser'
 import { ensureOcrReady, recognizeBagPhoto } from '~/utils/ocr-engine'
 
 export type PhotoScanStage =
@@ -31,7 +31,7 @@ export function usePhotoScan() {
   const stage = ref<PhotoScanStage>('idle')
   const errorMessage = ref('')
   const downloadProgress = ref(0)
-  const result = ref<ParsedBeanFields | null>(null)
+  const result = ref<LabelParseResult | null>(null)
 
   const isBusy = computed(() => stage.value !== 'idle' && stage.value !== 'done' && stage.value !== 'error')
 

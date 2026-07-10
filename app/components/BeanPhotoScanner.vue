@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { Camera, ImagePlus } from '@lucide/vue'
-import type { ParsedBeanFields } from '~/utils/bean-label-parser'
+import type { LabelParseResult } from '~/utils/bean-label-parser'
 
 const emit = defineEmits<{
-  scanned: [ParsedBeanFields]
+  scanned: [LabelParseResult]
   busy: [boolean]
 }>()
 
