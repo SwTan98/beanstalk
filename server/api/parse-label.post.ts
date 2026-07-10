@@ -288,9 +288,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 503, statusMessage: 'Label parsing service is not configured.' })
   }
 
-  // Use the rolling alias rather than a dated model id - Google deprecates
-  // dated flash versions on its own schedule, and a stale id 404s here.
-  const model = process.env.GEMINI_MODEL ?? 'gemini-flash-latest'
+  // Pinned rather than the gemini-flash-latest rolling alias: that alias
+  // currently resolves to gemini-3.5-flash, which can't fully disable
+  // "thinking" even with thinkingBudget: 0 below (only floors it), causing
+  // ~20s+ responses that blew the timeout budget. gemini-3.1-flash was
+  // verified directly against the real API to respond in <2s with correct
+  // structured output. Re-evaluate if this model is ever deprecated.
+  const model = process.env.GEMINI_MODEL ?? 'gemini-3.1-flash'
   const linesText = body.lines
     .map((line) => `${line.text} [${line.confidence.toFixed(2)}]`)
     .join('\n')
