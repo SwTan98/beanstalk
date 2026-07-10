@@ -291,10 +291,13 @@ export default defineEventHandler(async (event) => {
   // Pinned rather than the gemini-flash-latest rolling alias: that alias
   // currently resolves to gemini-3.5-flash, which can't fully disable
   // "thinking" even with thinkingBudget: 0 below (only floors it), causing
-  // ~20s+ responses that blew the timeout budget. gemini-3.1-flash was
-  // verified directly against the real API to respond in <2s with correct
-  // structured output. Re-evaluate if this model is ever deprecated.
-  const model = process.env.GEMINI_MODEL ?? 'gemini-3.1-flash'
+  // ~20s+ responses that blew the timeout budget - and separately hit real
+  // upstream 503 overload independent of our code. gemini-3.1-flash-lite
+  // was confirmed available via the API's own ListModels endpoint (plain
+  // "gemini-3.1-flash" does not exist - a 404 traced back to that) and
+  // Flash-Lite variants run with thinking off by default. Re-evaluate if
+  // this model is ever deprecated.
+  const model = process.env.GEMINI_MODEL ?? 'gemini-3.1-flash-lite'
   const linesText = body.lines
     .map((line) => `${line.text} [${line.confidence.toFixed(2)}]`)
     .join('\n')
