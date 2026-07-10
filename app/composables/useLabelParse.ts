@@ -5,17 +5,13 @@ import {
 } from '~/utils/bean-label-parser'
 import { mergeLabelParse } from '~/utils/label-merge'
 import type { OcrLine } from '~/utils/ocr-engine'
+import { GEMINI_CLIENT_TIMEOUT_MS } from '#shared/utils/timeouts'
 
 // 'gemini': the polish call succeeded and its fields were merged in as
 // primary. 'deterministic': online, but the Gemini call failed, errored, or
 // was rate-limited - the local parse alone is what's shown. 'offline-basic':
 // the device was offline, so the call was never attempted.
 export type LabelParseSource = 'gemini' | 'deterministic' | 'offline-basic'
-
-// Must stay above server/api/parse-label.post.ts's UPSTREAM_TIMEOUT_MS (20s)
-// so this client doesn't abort before the server's own timeout could even
-// fire - both are within nuxt.config.ts's 25s Vercel function limit.
-const POLISH_TIMEOUT_MS = 23_000
 
 // The deterministic parser always runs first (it's free/instant) and is the
 // fallback result. Gemini is the primary source: every online scan posts the
@@ -32,16 +28,28 @@ export async function parseLabelSmart(lines: OcrLine[]): Promise<{ result: Label
     return { result: base, source: 'offline-basic' }
   }
 
+  let llm: Partial<ParsedBeanFields>
+
   try {
-    const llm = await $fetch<Partial<ParsedBeanFields>>('/api/parse-label', {
+    llm = await $fetch<Partial<ParsedBeanFields>>('/api/parse-label', {
       method: 'POST',
-      timeout: POLISH_TIMEOUT_MS,
+      timeout: GEMINI_CLIENT_TIMEOUT_MS,
       body: { lines: lines.map(({ text, confidence }) => ({ text, confidence })) }
     })
-
-    return { result: mergeLabelParse(base, llm), source: 'gemini' }
   }
   catch {
+    // Expected failure mode (offline, timeout, 4xx/5xx, static build without
+    // server routes) - degrade silently, no logging.
+    return { result: base, source: 'deterministic' }
+  }
+
+  try {
+    return { result: mergeLabelParse(base, llm), source: 'gemini' }
+  }
+  catch (error) {
+    // Unexpected: the fetch succeeded but merging failed, which points at a
+    // real bug rather than an ordinary network failure - worth surfacing.
+    console.error('parseLabelSmart: merge failed', error)
     return { result: base, source: 'deterministic' }
   }
 }

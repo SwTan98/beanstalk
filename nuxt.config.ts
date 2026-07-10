@@ -1,4 +1,5 @@
 import tailwindcss from "@tailwindcss/vite";
+import { GEMINI_FUNCTION_MAX_DURATION_S } from "./shared/utils/timeouts";
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
@@ -66,11 +67,11 @@ export default defineNuxtConfig({
       ],
     },
     // Vercel-only: the default Hobby function limit (~10s) is too tight for
-    // a cold Gemini structured-output call. Keep above parse-label.post.ts's
-    // UPSTREAM_TIMEOUT_MS with margin for cold start + response overhead.
+    // a cold Gemini structured-output call. See shared/utils/timeouts.ts for
+    // how this relates to the server/client timeout budget.
     vercel: {
       functions: {
-        maxDuration: 25,
+        maxDuration: GEMINI_FUNCTION_MAX_DURATION_S,
       },
     },
   },
