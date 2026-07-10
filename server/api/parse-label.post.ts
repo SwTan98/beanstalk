@@ -38,7 +38,11 @@ const MAX_TASTING_NOTES = 5
 const MIN_PLAUSIBLE_GRAMS = 50
 const MAX_PLAUSIBLE_GRAMS = 5000
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
-const UPSTREAM_TIMEOUT_MS = 10_000
+// Coupled with nuxt.config.ts's nitro.vercel.functions.maxDuration (25s,
+// gives this headroom for cold start + our own overhead) and the client's
+// POLISH_TIMEOUT_MS in useLabelParse.ts (23s, must stay above this so the
+// client doesn't abort before this timeout could even fire).
+const UPSTREAM_TIMEOUT_MS = 20_000
 
 // In-memory per-IP rate limiting. This resets on every serverless cold start
 // and is tracked per concurrent instance, so it's abuse damping rather than a

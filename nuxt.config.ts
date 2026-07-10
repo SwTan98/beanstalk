@@ -65,6 +65,14 @@ export default defineNuxtConfig({
         "/insights",
       ],
     },
+    // Vercel-only: the default Hobby function limit (~10s) is too tight for
+    // a cold Gemini structured-output call. Keep above parse-label.post.ts's
+    // UPSTREAM_TIMEOUT_MS with margin for cold start + response overhead.
+    vercel: {
+      functions: {
+        maxDuration: 25,
+      },
+    },
   },
   pwa: {
     registerType: "autoUpdate",

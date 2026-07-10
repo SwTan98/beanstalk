@@ -12,7 +12,10 @@ import type { OcrLine } from '~/utils/ocr-engine'
 // the device was offline, so the call was never attempted.
 export type LabelParseSource = 'gemini' | 'deterministic' | 'offline-basic'
 
-const POLISH_TIMEOUT_MS = 6000
+// Must stay above server/api/parse-label.post.ts's UPSTREAM_TIMEOUT_MS (20s)
+// so this client doesn't abort before the server's own timeout could even
+// fire - both are within nuxt.config.ts's 25s Vercel function limit.
+const POLISH_TIMEOUT_MS = 23_000
 
 // The deterministic parser always runs first (it's free/instant) and is the
 // fallback result. Gemini is the primary source: every online scan posts the
