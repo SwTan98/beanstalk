@@ -119,9 +119,19 @@ export function parseDurationSeconds(value: unknown) {
 }
 
 export function formatDate(value: string) {
+  // Date-only ISO strings ("YYYY-MM-DD") parse as UTC midnight per spec, then
+  // Intl.DateTimeFormat renders in the local timezone - for any zone west of
+  // UTC that reads back as the previous day. Build the Date from local
+  // components instead so the calendar date never shifts.
+  const [year, month, day] = value.split('-').map(Number)
+
+  if (year === undefined || month === undefined || day === undefined) {
+    return value
+  }
+
   return new Intl.DateTimeFormat('en', {
     dateStyle: 'medium'
-  }).format(new Date(value))
+  }).format(new Date(year, month - 1, day))
 }
 
 export function formatDateTime(value: string) {

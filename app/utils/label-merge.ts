@@ -5,10 +5,10 @@ import {
   type LabelParseResult,
   type ParsedBeanFields
 } from '~/utils/bean-label-parser'
-import { normalizeTastingNotes } from '~/utils/domain'
+import { normalizeTastingNotes, ROAST_PROFILES } from '~/utils/domain'
 import type { RoastProfile } from '~/utils/types'
 
-const ROAST_PROFILE_VALUES: readonly RoastProfile[] = ['light', 'light-medium', 'medium', 'medium-dark', 'dark']
+const ROAST_PROFILE_VALUES: readonly RoastProfile[] = ROAST_PROFILES.map((profile) => profile.value)
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 // Blends the Gemini polish into the deterministic parse. Gemini is the
@@ -32,8 +32,13 @@ export function mergeLabelParse(deterministic: LabelParseResult, gemini: Partial
   for (const key of LABEL_FIELD_KEYS) {
     switch (key) {
       case 'tastingNotes': {
-        const geminiNotes = normalizeTastingNotes(gemini.tastingNotes ?? []).slice(0, MAX_TASTING_NOTES)
-        merged.tastingNotes = geminiNotes.length > 0 ? geminiNotes : deterministic.tastingNotes
+        // A present (even empty) array means Gemini answered - trust it over
+        // the noisier local sweep, including an explicit "no notes found".
+        // undefined means the field was never returned (network/validation
+        // failure upstream), which falls back to the deterministic result.
+        merged.tastingNotes = gemini.tastingNotes !== undefined
+          ? normalizeTastingNotes(gemini.tastingNotes).slice(0, MAX_TASTING_NOTES)
+          : deterministic.tastingNotes
         break
       }
       case 'startWeight':

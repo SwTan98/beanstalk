@@ -33,8 +33,10 @@ export const LABEL_FIELD_KEYS = [
 // Core fields drive the confidence score: weight and origin are printed on
 // virtually every bag (strong signals the OCR pass worked); the roast date is
 // often a stamp/sticker the OCR misses and process is sometimes absent, so
-// they weigh less - missing one alone shouldn't force the online fallback,
-// but missing both drops below the threshold.
+// they weigh less. This score is diagnostic only - it describes the
+// deterministic parse's quality but doesn't gate the online Gemini call,
+// which runs unconditionally whenever the device is online (see
+// useLabelParse.ts).
 export type LabelCoreField = 'startWeight' | 'roastDate' | 'origin' | 'process'
 
 const CORE_FIELD_WEIGHTS: Record<LabelCoreField, number> = {
@@ -48,9 +50,6 @@ export interface LabelParseResult extends ParsedBeanFields {
   confidence: number
   matchedFields: LabelCoreField[]
 }
-
-// Below this, the scan flow may consult the online polish endpoint.
-export const LABEL_PARSE_CONFIDENCE_THRESHOLD = 0.5
 
 const WEIGHT_MATCH_ALL_PATTERN = /(\d+(?:[.,]\d+)?)\s*(kilograms?|kgs?|grams?|ounces?|pounds?|lbs?|oz|lb|g|kg)\b/gi
 const WEIGHT_LINE_TEST_PATTERN = /(\d+(?:[.,]\d+)?)\s*(kilograms?|kgs?|grams?|ounces?|pounds?|lbs?|oz|lb|g|kg)\b/i
@@ -952,9 +951,20 @@ function applyAnchorHit(hit: AnchorHit, fields: ParsedBeanFields) {
   }
 
   // Notes are handled ahead of the general length cap - their lists run long.
+  // Truncate rather than drop on overflow (the final MAX_TASTING_NOTES cap
+  // downstream bounds the result either way), and require at least one
+  // recognizable flavor descriptor before trusting the anchor: a bare
+  // "Notes:" label can just as easily precede storage/care instructions as
+  // tasting notes, unlike an explicit "Tasting Notes:"/"Flavour:" label.
   if (hit.field === 'notes') {
-    if (value.length <= MAX_NOTES_VALUE_LENGTH) {
-      fields.tastingNotes.push(...splitTastingNotes(value))
+    const truncated = value.length > MAX_NOTES_VALUE_LENGTH ? value.slice(0, MAX_NOTES_VALUE_LENGTH) : value
+    const segments = splitTastingNotes(truncated)
+    const hasDescriptor = segments.some((segment) =>
+      segment.toLowerCase().split(/[^a-z]+/).some((token) => TASTING_DESCRIPTORS.has(token))
+    )
+
+    if (hasDescriptor) {
+      fields.tastingNotes.push(...segments)
     }
 
     return
@@ -1052,7 +1062,7 @@ function isTastingNotesLine(text: string): boolean {
 const NOTE_SPLIT_PATTERN = /[,;·•|/]+|\s+&\s+|\s+and\s+/i
 export const MAX_TASTING_NOTES = 5
 
-function splitTastingNotes(value: string): string[] {
+export function splitTastingNotes(value: string): string[] {
   return value
     .split(NOTE_SPLIT_PATTERN)
     .map((note) => note.replace(/^[\s.\-–:]+|[\s.\-–:]+$/g, ''))
@@ -1083,7 +1093,11 @@ function sweepTastingNotes(texts: string[]): string[] {
       continue
     }
 
-    notes.push(...segments)
+    // Only the segments that actually matched a known descriptor: the
+    // >=2 threshold above is evidence the LINE is a notes list, not
+    // evidence every segment on it is a flavor term (e.g. "Freshly Baked"
+    // riding alongside real descriptors on the same comma-separated line).
+    notes.push(...descriptorSegments)
   }
 
   return notes

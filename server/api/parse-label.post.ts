@@ -4,6 +4,8 @@
 // The app must keep working when this route is unreachable, unconfigured, or
 // rate limited - clients degrade silently to the deterministic result.
 
+import { GEMINI_UPSTREAM_TIMEOUT_MS } from '#shared/utils/timeouts'
+
 interface ParseLabelLine {
   text: string
   confidence: number
@@ -38,11 +40,6 @@ const MAX_TASTING_NOTES = 5
 const MIN_PLAUSIBLE_GRAMS = 50
 const MAX_PLAUSIBLE_GRAMS = 5000
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
-// Coupled with nuxt.config.ts's nitro.vercel.functions.maxDuration (25s,
-// gives this headroom for cold start + our own overhead) and the client's
-// POLISH_TIMEOUT_MS in useLabelParse.ts (23s, must stay above this so the
-// client doesn't abort before this timeout could even fire).
-const UPSTREAM_TIMEOUT_MS = 20_000
 
 // Google's own guidance: retry 429 (rate limited) and 503 (model overloaded)
 // with backoff. Both return fast, so this doesn't meaningfully eat into the
@@ -62,11 +59,11 @@ interface GeminiGenerateContentResponse {
 }
 
 // Retries transient failures (429/503) within a single shared deadline, so
-// total time across all attempts still respects UPSTREAM_TIMEOUT_MS no
-// matter how many retries happen - each attempt gets whatever time remains,
-// not a fresh timeout of its own.
+// total time across all attempts still respects GEMINI_UPSTREAM_TIMEOUT_MS
+// no matter how many retries happen - each attempt gets whatever time
+// remains, not a fresh timeout of its own.
 async function fetchGeminiWithRetry(url: string, apiKey: string, requestBody: Record<string, unknown>): Promise<GeminiGenerateContentResponse> {
-  const deadline = Date.now() + UPSTREAM_TIMEOUT_MS
+  const deadline = Date.now() + GEMINI_UPSTREAM_TIMEOUT_MS
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const remaining = deadline - Date.now()
@@ -222,15 +219,15 @@ function sanitizeLlmFields(rawText: string): LlmLabelFields {
   }
 
   if (Array.isArray(raw.tastingNotes)) {
-    const notes = raw.tastingNotes
+    // Always set the field, even when Gemini genuinely found none: an
+    // omitted key (the model never answered) and an explicit empty array
+    // (the model confirmed there are no tasting notes) need to stay
+    // distinguishable to the client's merge logic.
+    fields.tastingNotes = raw.tastingNotes
       .filter((note): note is string => typeof note === 'string')
       .map((note) => note.trim().toLowerCase().slice(0, MAX_FIELD_LENGTH))
       .filter((note) => note.length > 0)
       .slice(0, MAX_TASTING_NOTES)
-
-    if (notes.length > 0) {
-      fields.tastingNotes = notes
-    }
   }
 
   return fields
