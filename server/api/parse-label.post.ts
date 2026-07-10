@@ -311,7 +311,16 @@ export default defineEventHandler(async (event) => {
         generationConfig: {
           temperature: 0.1,
           responseMimeType: 'application/json',
-          responseSchema: buildResponseSchema()
+          responseSchema: buildResponseSchema(),
+          // Flash's default "thinking" adds unpredictable latency for a
+          // simple extraction task that doesn't need multi-step reasoning -
+          // observed 828 thinking tokens vs 107 output tokens on one call,
+          // which is what was pushing requests past the timeout budget.
+          // 0 disables thinking where supported; some 3.x Flash variants
+          // can't fully disable it but treat 0 as a floor.
+          thinkingConfig: {
+            thinkingBudget: 0
+          }
         }
       }
     )
