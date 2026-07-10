@@ -256,18 +256,12 @@ function buildResponseSchema() {
   }
 }
 
-const EXTRACTION_INSTRUCTION = [
-  'You extract structured fields from OCR text lines read off a coffee bag label.',
-  'Return only JSON matching the response schema. Use null for anything not present on the label.',
-  'Fields: name (the coffee/product name), roaster (the company), origin (producing country),',
-  'region, varietal, process (e.g. Washed, Natural, Honey, Anaerobic),',
-  'roastProfile (one of light, light-medium, medium, medium-dark, dark),',
-  'startWeight (net bag weight converted to grams, as a number),',
-  'roastDate (the roast date as YYYY-MM-DD; never a best-before or expiry date),',
-  'tastingNotes (up to 5 short flavor descriptors).',
-  'The OCR text may contain recognition errors; infer the intended words.',
-  'Each line is followed by its OCR confidence between 0 and 1.'
-].join(' ')
+// "Terse" variant, chosen via the user's own prompt/temperature/thinking
+// sweep against gemini-3.1-flash-lite as producing their preferred results.
+// Field semantics beyond bare names (units, enum values, the roastDate-vs-
+// best-before distinction) now rely on the responseSchema rather than being
+// spelled out here - re-add detail here if a specific field starts drifting.
+const EXTRACTION_INSTRUCTION = 'Extract fields to JSON schema from noisy OCR lines. Null if missing.'
 
 export default defineEventHandler(async (event) => {
   const clientKey = getRequestIP(event, { xForwardedFor: true }) ?? 'unknown'
@@ -316,17 +310,17 @@ export default defineEventHandler(async (event) => {
           }
         ],
         generationConfig: {
-          temperature: 0.1,
+          // temperature/thinkingBudget chosen via the user's own sweep
+          // against gemini-3.1-flash-lite. -1 = dynamic thinking (model
+          // decides how much to use) - unlike gemini-3.5-flash, Flash-Lite
+          // runs with thinking off by default, so this is opt-in rather
+          // than an unremovable floor; watch real-world latency if this
+          // ever regresses toward the timeout budget.
+          temperature: 0.3,
           responseMimeType: 'application/json',
           responseSchema: buildResponseSchema(),
-          // Flash's default "thinking" adds unpredictable latency for a
-          // simple extraction task that doesn't need multi-step reasoning -
-          // observed 828 thinking tokens vs 107 output tokens on one call,
-          // which is what was pushing requests past the timeout budget.
-          // 0 disables thinking where supported; some 3.x Flash variants
-          // can't fully disable it but treat 0 as a floor.
           thinkingConfig: {
-            thinkingBudget: 0
+            thinkingBudget: -1
           }
         }
       }
