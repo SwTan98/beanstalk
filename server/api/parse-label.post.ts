@@ -256,12 +256,12 @@ function buildResponseSchema() {
   }
 }
 
-// "Terse" variant, chosen via the user's own prompt/temperature/thinking
-// sweep against gemini-3.1-flash-lite as producing their preferred results.
-// Field semantics beyond bare names (units, enum values, the roastDate-vs-
-// best-before distinction) now rely on the responseSchema rather than being
-// spelled out here - re-add detail here if a specific field starts drifting.
-const EXTRACTION_INSTRUCTION = 'Extract fields to JSON schema from noisy OCR lines. Null if missing.'
+// Chosen via the user's own prompt/temperature/thinking experimentation
+// against gemini-3.1-flash-lite. Field semantics beyond bare names (units,
+// enum values, the roastDate-vs-best-before distinction) rely on the
+// responseSchema rather than being spelled out here - re-add detail here if
+// a specific field starts drifting.
+const EXTRACTION_INSTRUCTION = 'Extract fields to JSON schema from noisy OCR lines, standardize capitalization. Null if missing.'
 
 export default defineEventHandler(async (event) => {
   const clientKey = getRequestIP(event, { xForwardedFor: true }) ?? 'unknown'
@@ -310,17 +310,14 @@ export default defineEventHandler(async (event) => {
           }
         ],
         generationConfig: {
-          // temperature/thinkingBudget chosen via the user's own sweep
-          // against gemini-3.1-flash-lite. -1 = dynamic thinking (model
-          // decides how much to use) - unlike gemini-3.5-flash, Flash-Lite
-          // runs with thinking off by default, so this is opt-in rather
-          // than an unremovable floor; watch real-world latency if this
-          // ever regresses toward the timeout budget.
-          temperature: 0.3,
+          // temperature/thinkingBudget chosen via the user's own
+          // experimentation against gemini-3.1-flash-lite: fully
+          // deterministic output, thinking off.
+          temperature: 0,
           responseMimeType: 'application/json',
           responseSchema: buildResponseSchema(),
           thinkingConfig: {
-            thinkingBudget: -1
+            thinkingBudget: 0
           }
         }
       }
