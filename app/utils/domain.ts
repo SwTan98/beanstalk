@@ -118,6 +118,12 @@ export function parseDurationSeconds(value: unknown) {
   return Number(minutes) * 60 + Number(seconds)
 }
 
+export function formatDate(value: string) {
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium'
+  }).format(new Date(value))
+}
+
 export function formatDateTime(value: string) {
   return new Intl.DateTimeFormat('en', {
     dateStyle: 'medium',

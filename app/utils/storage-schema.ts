@@ -1,9 +1,12 @@
 import type { DBSchema } from 'idb'
 import type { Bean, Brew } from '~/utils/types'
 
-export interface StoredBean extends Omit<Bean, 'region' | 'varietal'> {
+export interface StoredBean extends Omit<Bean, 'region' | 'varietal' | 'roastDate' | 'tastingNotes'> {
   region: unknown
   varietal: unknown
+  // Absent (undefined) on records written before schema version 2.
+  roastDate: unknown
+  tastingNotes: unknown
 }
 
 export interface StoredBrew extends Omit<Brew, 'brewTime'> {
@@ -39,6 +42,11 @@ export interface BeanstalkDatabase extends DBSchema {
 }
 
 export const DATABASE_NAME = 'beanstalk'
+// DATABASE_VERSION guards IndexedDB *structure* (stores/indexes) and only
+// moves when storage-upgrades.ts gains a step; STORAGE_SCHEMA_VERSION tracks
+// *data-level* migrations run by ensureSchemaCompatibility in storage.ts.
+// Schema version 2 added Bean.roastDate/tastingNotes - new properties only,
+// so the database version stayed put.
 export const DATABASE_VERSION = 2
-export const STORAGE_SCHEMA_VERSION = 1
+export const STORAGE_SCHEMA_VERSION = 2
 export const SCHEMA_VERSION_KEY = 'schema-version'

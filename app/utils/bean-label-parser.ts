@@ -1,4 +1,4 @@
-import { roundToSingleDecimal } from '~/utils/domain'
+import { normalizeTastingNotes, roundToSingleDecimal } from '~/utils/domain'
 import type { OcrBox, OcrLine } from '~/utils/ocr-engine'
 import type { RoastProfile } from '~/utils/types'
 
@@ -11,7 +11,46 @@ export interface ParsedBeanFields {
   process: string | null
   roastProfile: RoastProfile | null
   startWeight: number | null
+  roastDate: string | null
+  tastingNotes: string[]
 }
+
+// Every scannable field, for callers that iterate the parse result (form
+// prefill marking, merge logic) without touching confidence/matchedFields.
+export const LABEL_FIELD_KEYS = [
+  'name',
+  'roaster',
+  'origin',
+  'region',
+  'varietal',
+  'process',
+  'roastProfile',
+  'startWeight',
+  'roastDate',
+  'tastingNotes'
+] as const
+
+// Core fields drive the confidence score: weight and origin are printed on
+// virtually every bag (strong signals the OCR pass worked); the roast date is
+// often a stamp/sticker the OCR misses and process is sometimes absent, so
+// they weigh less - missing one alone shouldn't force the online fallback,
+// but missing both drops below the threshold.
+export type LabelCoreField = 'startWeight' | 'roastDate' | 'origin' | 'process'
+
+const CORE_FIELD_WEIGHTS: Record<LabelCoreField, number> = {
+  startWeight: 0.3,
+  origin: 0.3,
+  process: 0.2,
+  roastDate: 0.2
+}
+
+export interface LabelParseResult extends ParsedBeanFields {
+  confidence: number
+  matchedFields: LabelCoreField[]
+}
+
+// Below this, the scan flow may consult the online polish endpoint.
+export const LABEL_PARSE_CONFIDENCE_THRESHOLD = 0.5
 
 const WEIGHT_MATCH_ALL_PATTERN = /(\d+(?:[.,]\d+)?)\s*(kilograms?|kgs?|grams?|ounces?|pounds?|lbs?|oz|lb|g|kg)\b/gi
 const WEIGHT_LINE_TEST_PATTERN = /(\d+(?:[.,]\d+)?)\s*(kilograms?|kgs?|grams?|ounces?|pounds?|lbs?|oz|lb|g|kg)\b/i
@@ -78,6 +117,165 @@ function parseWeightGrams(text: string): number | null {
   }
 
   return candidates.reduce((largest, candidate) => (candidate.grams > largest.grams ? candidate : largest)).grams
+}
+
+// --- Roast date ---------------------------------------------------------------
+
+// Matched against the OCR-corrected copy ('roasted' is in the correction
+// vocabulary, so "ROASTEO ON" still hits).
+const ROAST_DATE_KEYWORD_PATTERN = /\broast(?:ed)?\b(?:\s*(?:on|date))?/i
+// "RD: 03/05" stamps - uppercase with a separator so "3rd" can't match.
+const ROAST_DATE_ABBREVIATION_PATTERN = /\bR\.?D\.?\s*[:.\-]/
+// Bags carry other dates; none of these lines may source a roast date.
+const NOT_ROAST_DATE_PATTERN = /\bbest\s*b(?:y|efore)\b|\bsell\s*by\b|\buse\s*by\b|\bexp(?:iry|ires)?\.?\b|\bbbe?\b/i
+
+const MONTH_NAME_ALTERNATION = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?'
+const NUMERIC_DATE_PATTERN = /\b(\d{1,4})[/.\-](\d{1,2})[/.\-](\d{2,4})\b/g
+const DAY_MONTH_YEAR_PATTERN = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${MONTH_NAME_ALTERNATION})\\.?,?\\s+(\\d{2,4})\\b`, 'gi')
+const MONTH_DAY_YEAR_PATTERN = new RegExp(`\\b(${MONTH_NAME_ALTERNATION})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{2,4})\\b`, 'gi')
+const MONTH_PREFIXES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+
+// A roast date is plausible when it sits in the recent past: within the last
+// twelve months, allowing a day of clock skew into the future.
+const ROAST_DATE_MAX_AGE_MONTHS = 12
+const DAY_IN_MS = 24 * 60 * 60 * 1000
+
+function monthNumberFromName(name: string): number {
+  const prefix = name.slice(0, 3).toLowerCase()
+  return MONTH_PREFIXES.indexOf(prefix) + 1
+}
+
+function expandTwoDigitYear(year: number): number {
+  return year < 100 ? 2000 + year : year
+}
+
+function toIsoDate(year: number, month: number, day: number): string | null {
+  if (year < 2000 || month < 1 || month > 12 || day < 1 || day > 31) {
+    return null
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day))
+
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    return null
+  }
+
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function isPlausibleRoastDate(isoDate: string, now: Date): boolean {
+  const timestamp = Date.parse(`${isoDate}T00:00:00Z`)
+  const earliest = new Date(now)
+  earliest.setUTCMonth(earliest.getUTCMonth() - ROAST_DATE_MAX_AGE_MONTHS)
+  return timestamp >= earliest.getTime() && timestamp <= now.getTime() + DAY_IN_MS
+}
+
+function extractRoastDate(text: string, now: Date): string | null {
+  const candidates: Array<string | null> = []
+
+  for (const match of text.matchAll(NUMERIC_DATE_PATTERN)) {
+    const [, rawFirst = '', rawSecond = '', rawThird = ''] = match
+    const first = Number(rawFirst)
+    const second = Number(rawSecond)
+    const third = Number(rawThird)
+
+    if (rawFirst.length === 4) {
+      candidates.push(toIsoDate(first, second, third))
+      continue
+    }
+
+    const year = expandTwoDigitYear(third)
+    const dayFirst = toIsoDate(year, second, first)
+    const monthFirst = toIsoDate(year, first, second)
+
+    if (first > 12) {
+      candidates.push(dayFirst)
+    }
+    else if (second > 12) {
+      candidates.push(monthFirst)
+    }
+    else {
+      // Ambiguous dd/mm vs mm/dd: prefer whichever reading lands in the
+      // recent-past window; when both (or neither) do, assume day-first.
+      const dayFirstPlausible = dayFirst !== null && isPlausibleRoastDate(dayFirst, now)
+      const monthFirstPlausible = monthFirst !== null && isPlausibleRoastDate(monthFirst, now)
+      candidates.push(dayFirstPlausible || !monthFirstPlausible ? dayFirst : monthFirst)
+    }
+  }
+
+  for (const match of text.matchAll(DAY_MONTH_YEAR_PATTERN)) {
+    const [, rawDay = '', rawMonth = '', rawYear = ''] = match
+    candidates.push(toIsoDate(expandTwoDigitYear(Number(rawYear)), monthNumberFromName(rawMonth), Number(rawDay)))
+  }
+
+  for (const match of text.matchAll(MONTH_DAY_YEAR_PATTERN)) {
+    const [, rawMonth = '', rawDay = '', rawYear = ''] = match
+    candidates.push(toIsoDate(expandTwoDigitYear(Number(rawYear)), monthNumberFromName(rawMonth), Number(rawDay)))
+  }
+
+  return candidates.find((candidate): candidate is string =>
+    candidate !== null && isPlausibleRoastDate(candidate, now)
+  ) ?? null
+}
+
+// Runs over all lines (anchored ones included): matchAnchors deliberately
+// skips date-like lines, so the roast date needs its own pass.
+function parseRoastDate(lines: OcrLine[], now: Date = new Date()): string | null {
+  const isExcluded = (text: string) => NOT_ROAST_DATE_PATTERN.test(toMatchText(text))
+  const isRoastKeyed = (text: string) =>
+    ROAST_DATE_KEYWORD_PATTERN.test(toMatchText(text)) || ROAST_DATE_ABBREVIATION_PATTERN.test(text)
+
+  // Date printed on the keyword line itself ("Roasted on 03/05/2026").
+  for (const line of lines) {
+    if (!isRoastKeyed(line.text) || isExcluded(line.text)) {
+      continue
+    }
+
+    const date = extractRoastDate(line.text, now)
+
+    if (date) {
+      return date
+    }
+  }
+
+  // Detached layouts: keyword label with the stamped date beside or below.
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index]
+
+    if (!line || !isRoastKeyed(line.text) || isExcluded(line.text)) {
+      continue
+    }
+
+    const valueIndex = findValueLineBeside(index, lines) ?? findValueLineBelow(index, lines)
+    const valueLine = valueIndex !== null ? lines[valueIndex] : undefined
+
+    if (!valueLine || isExcluded(valueLine.text)) {
+      continue
+    }
+
+    const date = extractRoastDate(valueLine.text, now)
+
+    if (date) {
+      return date
+    }
+  }
+
+  // Fallback: exactly one plausible in-window date anywhere on the label.
+  const anywhere = new Set<string>()
+
+  for (const line of lines) {
+    if (isExcluded(line.text)) {
+      continue
+    }
+
+    const date = extractRoastDate(line.text, now)
+
+    if (date) {
+      anywhere.add(date)
+    }
+  }
+
+  return anywhere.size === 1 ? [...anywhere][0] ?? null : null
 }
 
 const ROAST_PROFILE_PATTERNS: Array<{ pattern: RegExp; profile: RoastProfile }> = [
@@ -353,6 +551,7 @@ const CORRECTION_VOCABULARY = [
   'washed', 'natural', 'honey', 'anaerobic', 'carbonic', 'maceration', 'hulled', 'pulped',
   'origin', 'country', 'region', 'variety', 'varietal', 'process', 'processing', 'method',
   'producer', 'altitude', 'elevation', 'harvest', 'notes', 'tasting',
+  'flavor', 'flavour', 'flavors', 'flavours',
   // anchor/process terms only - varietal names are deliberately NOT fuzzed,
   // they look too much like the region/name values fuzzing could corrupt
   'thermal', 'ferment', 'fermented', 'fermentation', 'monsooned', 'sugarcane',
@@ -454,6 +653,7 @@ type AnchorField =
   | 'process'
   | 'roast'
   | 'roaster'
+  | 'notes'
   | 'discard'
 
 // `midlineWithoutColon` marks phrases specific enough to anchor mid-line
@@ -463,7 +663,7 @@ const ANCHOR_KEYWORDS: Array<{ pattern: RegExp; field: AnchorField; midlineWitho
   { pattern: /^roasted\s*by\b/i, field: 'roaster', midlineWithoutColon: true },
   { pattern: /^sourced\s*by\b/i, field: 'roaster', midlineWithoutColon: true },
   { pattern: /^roaster\b/i, field: 'roaster' },
-  { pattern: /^(?:tasting\s*)?notes?\b/i, field: 'discard' },
+  { pattern: /^(?:tasting\s*)?notes?\b|^flavou?rs?\b/i, field: 'notes' },
   { pattern: /^(?:elevation|altitude|harvest|producer|farm)\b/i, field: 'discard' },
   { pattern: /^(?:origin|country)\b/i, field: 'origin' },
   { pattern: /^(?:region|location)\b/i, field: 'region' },
@@ -475,6 +675,9 @@ const ANCHOR_KEYWORDS: Array<{ pattern: RegExp; field: AnchorField; midlineWitho
 const ANCHOR_SEPARATOR_PATTERN = /^[\s:.\-–—|\])}]+/
 const BRACKET_NOISE_PATTERN = /[[\]{}()|]/g
 const MAX_ANCHORED_VALUE_LENGTH = 40
+// Note lists routinely exceed the general anchored-value cap
+// ("Blackberry, Lemon Zest, Jasmine, Black Tea").
+const MAX_NOTES_VALUE_LENGTH = 120
 
 interface AnchorHit {
   field: AnchorField
@@ -618,8 +821,9 @@ function matchAnchors(lineIndex: number, lines: OcrLine[]): AnchorHit[] {
       // Values can wrap ("74158, 74112," / "74110") - a trailing comma marks
       // a continuation on the next line of the same column.
       let currentIndex = valueIndex
+      const maxValueLength = single.field === 'notes' ? MAX_NOTES_VALUE_LENGTH : MAX_ANCHORED_VALUE_LENGTH
 
-      while (/[,;]$/.test(single.value) && single.value.length < MAX_ANCHORED_VALUE_LENGTH) {
+      while (/[,;]$/.test(single.value) && single.value.length < maxValueLength) {
         const nextIndex = findValueLineBelow(currentIndex, lines)
 
         if (nextIndex === null || single.consumedIndexes.includes(nextIndex)) {
@@ -743,7 +947,20 @@ function findValueLineBelow(lineIndex: number, lines: OcrLine[]): number | null 
 function applyAnchorHit(hit: AnchorHit, fields: ParsedBeanFields) {
   const value = hit.value.trim()
 
-  if (hit.field === 'discard' || !value || value.length > MAX_ANCHORED_VALUE_LENGTH) {
+  if (hit.field === 'discard' || !value) {
+    return
+  }
+
+  // Notes are handled ahead of the general length cap - their lists run long.
+  if (hit.field === 'notes') {
+    if (value.length <= MAX_NOTES_VALUE_LENGTH) {
+      fields.tastingNotes.push(...splitTastingNotes(value))
+    }
+
+    return
+  }
+
+  if (value.length > MAX_ANCHORED_VALUE_LENGTH) {
     return
   }
 
@@ -828,6 +1045,48 @@ function isTastingNotesLine(text: string): boolean {
 
   const descriptorCount = tokens.filter((token) => TASTING_DESCRIPTORS.has(token)).length
   return descriptorCount / tokens.length >= 0.5
+}
+
+// --- Tasting notes ------------------------------------------------------------
+
+const NOTE_SPLIT_PATTERN = /[,;·•|/]+|\s+&\s+|\s+and\s+/i
+const MAX_TASTING_NOTES = 5
+
+function splitTastingNotes(value: string): string[] {
+  return value
+    .split(NOTE_SPLIT_PATTERN)
+    .map((note) => note.replace(/^[\s.\-–:]+|[\s.\-–:]+$/g, ''))
+    .filter((note) => note.length >= 3 && !/\d/.test(note))
+}
+
+// Unanchored sweep: lines that read as note lists - several separated
+// segments, at least two of which carry a known flavor descriptor.
+function sweepTastingNotes(texts: string[]): string[] {
+  const notes: string[] = []
+
+  for (const text of texts) {
+    if (!isTastingNotesLine(text)) {
+      continue
+    }
+
+    const segments = splitTastingNotes(text)
+
+    if (segments.length < 2) {
+      continue
+    }
+
+    const descriptorSegments = segments.filter((segment) =>
+      segment.toLowerCase().split(/[^a-z]+/).some((token) => TASTING_DESCRIPTORS.has(token))
+    )
+
+    if (descriptorSegments.length < 2) {
+      continue
+    }
+
+    notes.push(...segments)
+  }
+
+  return notes
 }
 
 // Words that appear alone on packaging as chrome, never as a bean name.
@@ -1029,7 +1288,7 @@ function parseNameAndRoaster(candidates: OcrLine[], allLines: OcrLine[]): { name
 
 // --- Entry point --------------------------------------------------------------
 
-export function parseBeanLabel(ocrLines: OcrLine[]): ParsedBeanFields {
+export function parseBeanLabel(ocrLines: OcrLine[]): LabelParseResult {
   const fields: ParsedBeanFields = {
     name: null,
     roaster: null,
@@ -1038,7 +1297,9 @@ export function parseBeanLabel(ocrLines: OcrLine[]): ParsedBeanFields {
     varietal: null,
     process: null,
     roastProfile: null,
-    startWeight: null
+    startWeight: null,
+    roastDate: null,
+    tastingNotes: []
   }
 
   const lines = ocrLines.filter((line) => line.text.trim().length > 0)
@@ -1088,6 +1349,11 @@ export function parseBeanLabel(ocrLines: OcrLine[]): ParsedBeanFields {
   fields.process ??= parseProcess(fullMatchText)
   fields.roastProfile ??= parseRoastProfile(fullMatchText)
   fields.startWeight = parseWeightGrams(fullMatchText)
+  fields.roastDate = parseRoastDate(lines)
+
+  // Anchored notes (pass 1) come first; the sweep only tops up to the cap.
+  fields.tastingNotes.push(...sweepTastingNotes(unconsumedLines.map((line) => line.text.trim())))
+  fields.tastingNotes = normalizeTastingNotes(fields.tastingNotes).slice(0, MAX_TASTING_NOTES)
 
   // Name/roaster from the leftover display text, picked by font size.
   // Prefixes rescued from mid-line anchors compete alongside whole lines.
@@ -1149,5 +1415,13 @@ export function parseBeanLabel(ocrLines: OcrLine[]): ParsedBeanFields {
     }
   }
 
-  return fields
+  const matchedFields = (Object.keys(CORE_FIELD_WEIGHTS) as LabelCoreField[])
+    .filter((field) => fields[field] !== null)
+  const confidence = matchedFields.reduce((total, field) => total + CORE_FIELD_WEIGHTS[field], 0)
+
+  return {
+    ...fields,
+    confidence: Math.round(confidence * 100) / 100,
+    matchedFields
+  }
 }
