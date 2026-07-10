@@ -250,7 +250,7 @@ function buildResponseSchema() {
       process: nullableString,
       roastProfile: { type: 'STRING', enum: [...ROAST_PROFILE_VALUES], nullable: true },
       startWeight: { type: 'NUMBER', nullable: true },
-      roastDate: nullableString,
+      roastDate: { type: 'STRING', nullable: true, description: 'ISO 8601 date, YYYY-MM-DD' },
       tastingNotes: { type: 'ARRAY', items: { type: 'STRING' } }
     }
   }
@@ -260,8 +260,11 @@ function buildResponseSchema() {
 // against gemini-3.1-flash-lite. Field semantics beyond bare names (units,
 // enum values, the roastDate-vs-best-before distinction) rely on the
 // responseSchema rather than being spelled out here - re-add detail here if
-// a specific field starts drifting.
-const EXTRACTION_INSTRUCTION = 'Extract fields to JSON schema from noisy OCR lines, standardize capitalization. Null if missing.'
+// a specific field starts drifting. roastDate is the one exception: without
+// an explicit format, the model returns whatever format was printed on the
+// label (e.g. "03/05/2026"), which ISO_DATE_PATTERN below then silently
+// rejects, dropping the field on nearly every response.
+const EXTRACTION_INSTRUCTION = 'Extract fields to JSON schema from noisy OCR lines, standardize capitalization. Format roastDate as YYYY-MM-DD, never a best-before or expiry date. Null if missing.'
 
 export default defineEventHandler(async (event) => {
   const clientKey = getRequestIP(event, { xForwardedFor: true }) ?? 'unknown'
