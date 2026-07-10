@@ -1,4 +1,3 @@
-import { useRuntimeConfig } from '#imports'
 import type { PaddleOcrService } from 'ppu-paddle-ocr/web'
 
 export interface OcrBox {
@@ -34,9 +33,7 @@ const OCR_CACHE_NAME = 'beanstalk-ocr-v1'
 let servicePromise: Promise<PaddleOcrService> | null = null
 
 function resolveAssetBaseURL() {
-  const { app } = useRuntimeConfig()
-  const base = app.baseURL.endsWith('/') ? app.baseURL : `${app.baseURL}/`
-  return `${window.location.origin}${base}`
+  return `${window.location.origin}/`
 }
 
 async function openOcrCache(): Promise<Cache | null> {
@@ -148,7 +145,8 @@ async function createService(onDownloadProgress?: (fraction: number) => void): P
   // the wasm path unless one is already set, which would break offline use.
   const ort = await import('onnxruntime-web')
   ort.env.wasm.wasmPaths = `${baseURL}ocr/ort/`
-  // GitHub Pages sends no COOP/COEP headers, so threaded wasm can't run anyway.
+  // The host doesn't serve COOP/COEP headers (no cross-origin isolation), so
+  // threaded wasm can't run anyway.
   ort.env.wasm.numThreads = 1
 
   const { PaddleOcrService: WebPaddleOcrService } = await import('ppu-paddle-ocr/web')

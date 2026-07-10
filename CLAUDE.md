@@ -14,18 +14,18 @@ Use `pnpm` (a `pnpm-lock.yaml` is committed).
 | --- | --- | --- |
 | Install dependencies | `pnpm install` | Runs `nuxt prepare` via `postinstall`. |
 | Start dev server | `pnpm dev` | http://localhost:3000 |
-| Build (server) | `pnpm build` | Produces Nitro output in `.output/`. |
-| Generate static site | `pnpm generate` | Static output in `.output/public`; this is the deployment target (see below). |
+| Build (server) | `pnpm build` | Produces Nitro output in `.output/`; this is what Vercel runs (see below). |
+| Generate static site | `pnpm generate` | Static output in `.output/public`. Local static-build check only — a static build has no `/api` server routes. |
 | Preview production build | `pnpm preview` | Runs the built app locally. |
-| Run the built server directly | `node .output/server/index.mjs` | Matches the current Nitro `node-server` output. |
+| Run the built server directly | `node .output/server/index.mjs` | Matches the local Nitro `node-server` output. |
 
 There are no test or lint scripts defined in `package.json` — do not assume `pnpm test`/`pnpm lint` exist. When verifying changes, run `pnpm dev` (or `pnpm generate`) and check the app in a browser.
 
 ## Deployment
 
-`.github/workflows/deploy-pages.yml` deploys to GitHub Pages on push to `master`: it runs `pnpm generate` and publishes `.output/public`. The base URL is computed from `NUXT_APP_BASE_URL` (root `/` when `public/CNAME` is present, otherwise `/<repo-name>/`), and `nuxt.config.ts` derives all asset/manifest URLs from that same variable via the `withBase()` helper. Keep any new hardcoded asset paths going through `withBase()` rather than assuming root-relative paths.
+The app deploys to Vercel via its git integration: Vercel auto-detects Nuxt, runs `pnpm install` + `nuxt build` (Nitro `vercel` preset), and serves prerendered pages statically with `server/api/` routes as serverless functions. **Do not switch the Vercel build command to `pnpm generate`** — a static build drops the server routes. The custom domain (`beanstalk.swtan98.com`) is configured in the Vercel dashboard, not in the repo. The base URL is always `/`; write asset paths root-relative (there is no `withBase()` helper anymore). Server env vars (`GEMINI_API_KEY`, `GEMINI_MODEL`) are set in Vercel project settings — never expose them as `NUXT_PUBLIC_*`.
 
-`nitro.prerender.routes` in `nuxt.config.ts` lists every route that must be prerendered for the static build (`/`, `/stash`, `/stash/new`, `/journal`, `/journal/new`, `/insights`). **New top-level routes must be added to this list**, or they won't exist in the static/PWA build.
+`nitro.prerender.routes` in `nuxt.config.ts` lists every route that is prerendered to static HTML (`/`, `/stash`, `/stash/new`, `/journal`, `/journal/new`, `/insights`) — these HTML files are what the workbox precache picks up, which is what makes deep links load offline. **New top-level routes must be added to this list**: without it a route still works online via the SPA fallback, but won't be precached for offline use.
 
 ## Architecture
 
