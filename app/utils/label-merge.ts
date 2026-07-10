@@ -11,60 +11,55 @@ import type { RoastProfile } from '~/utils/types'
 const ROAST_PROFILE_VALUES: readonly RoastProfile[] = ['light', 'light-medium', 'medium', 'medium-dark', 'dark']
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
-// Blends the optional LLM polish into the deterministic parse. The local
-// result is the base and the LLM only fills gaps, with two deliberate rules:
-// tasting notes are the one field where non-empty LLM output replaces the
-// heuristic pick (the sweep is the noisiest extractor), while startWeight and
-// roastDate are never overridden - a regex-extracted weight or date read off
-// the label beats a model's guess. confidence/matchedFields keep describing
-// the local parse; the fallback decision they drive has already been made.
-export function mergeLabelParse(base: LabelParseResult, llm: Partial<ParsedBeanFields>): LabelParseResult {
+// Blends the Gemini polish into the deterministic parse. Gemini is the
+// primary source: a valid value from it wins on every field, and the
+// deterministic parse - always computed locally, whether or not Gemini was
+// even reachable - is only the fallback for fields Gemini left null/empty or
+// returned something implausible for. "Valid" still means the same bar as
+// before: startWeight is a finite positive number, roastDate is ISO-shaped
+// and in the plausible recent-past window, roastProfile is one of the five
+// known values, and tastingNotes/plain-string fields are non-empty after
+// normalizing - this is what stops a malformed or hallucinated Gemini
+// response from corrupting the result. confidence/matchedFields keep
+// describing the deterministic parse alone, independent of this merge.
+export function mergeLabelParse(deterministic: LabelParseResult, gemini: Partial<ParsedBeanFields>): LabelParseResult {
   const merged: LabelParseResult = {
-    ...base,
-    tastingNotes: [...base.tastingNotes],
-    matchedFields: [...base.matchedFields]
+    ...deterministic,
+    tastingNotes: [...deterministic.tastingNotes],
+    matchedFields: [...deterministic.matchedFields]
   }
 
   for (const key of LABEL_FIELD_KEYS) {
     switch (key) {
       case 'tastingNotes': {
-        const llmNotes = normalizeTastingNotes(llm.tastingNotes ?? []).slice(0, MAX_TASTING_NOTES)
-
-        if (llmNotes.length > 0) {
-          merged.tastingNotes = llmNotes
-        }
-
+        const geminiNotes = normalizeTastingNotes(gemini.tastingNotes ?? []).slice(0, MAX_TASTING_NOTES)
+        merged.tastingNotes = geminiNotes.length > 0 ? geminiNotes : deterministic.tastingNotes
         break
       }
       case 'startWeight':
-        // Fill-if-empty only: deterministic weight always wins.
-        if (merged.startWeight === null && typeof llm.startWeight === 'number'
-          && Number.isFinite(llm.startWeight) && llm.startWeight > 0) {
-          merged.startWeight = llm.startWeight
-        }
+        merged.startWeight = (typeof gemini.startWeight === 'number'
+          && Number.isFinite(gemini.startWeight) && gemini.startWeight > 0)
+          ? gemini.startWeight
+          : deterministic.startWeight
 
         break
       case 'roastDate':
-        // Fill-if-empty only, re-validated: deterministic date always wins.
-        if (merged.roastDate === null && typeof llm.roastDate === 'string'
-          && ISO_DATE_PATTERN.test(llm.roastDate) && isPlausibleRoastDate(llm.roastDate)) {
-          merged.roastDate = llm.roastDate
-        }
+        merged.roastDate = (typeof gemini.roastDate === 'string'
+          && ISO_DATE_PATTERN.test(gemini.roastDate) && isPlausibleRoastDate(gemini.roastDate))
+          ? gemini.roastDate
+          : deterministic.roastDate
 
         break
       case 'roastProfile':
-        if (merged.roastProfile === null && typeof llm.roastProfile === 'string'
-          && ROAST_PROFILE_VALUES.includes(llm.roastProfile)) {
-          merged.roastProfile = llm.roastProfile
-        }
+        merged.roastProfile = (typeof gemini.roastProfile === 'string'
+          && ROAST_PROFILE_VALUES.includes(gemini.roastProfile))
+          ? gemini.roastProfile
+          : deterministic.roastProfile
 
         break
       default: {
-        const value = llm[key]
-
-        if (merged[key] === null && typeof value === 'string' && value.trim()) {
-          merged[key] = value.trim()
-        }
+        const value = gemini[key]
+        merged[key] = (typeof value === 'string' && value.trim()) ? value.trim() : deterministic[key]
       }
     }
   }

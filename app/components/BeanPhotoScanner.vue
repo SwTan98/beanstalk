@@ -126,6 +126,9 @@ const downloadPercent = computed(() => Math.round(downloadProgress.value * 100))
       <p v-if="scanSource === 'offline-basic'" class="field-help">
         Offline - basic scan used.
       </p>
+      <p v-else-if="scanSource === 'deterministic'" class="field-help">
+        Basic scan used.
+      </p>
     </div>
 
     <div v-else-if="stage === 'error'" class="space-y-3">

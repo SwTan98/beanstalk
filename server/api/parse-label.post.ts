@@ -1,8 +1,8 @@
-// Optional LLM polish for bag-label scans: the client posts OCR lines when
-// the deterministic parser scores low confidence, and this route asks Gemini
-// to extract the same bean fields. The app must keep working when this route
-// is unreachable, unconfigured, or rate limited - clients degrade silently to
-// the deterministic result.
+// Primary parser for bag-label scans: the client posts OCR lines on every
+// online scan, and this route asks Gemini to extract the bean fields -
+// Gemini's result wins per field over the client's local deterministic parse.
+// The app must keep working when this route is unreachable, unconfigured, or
+// rate limited - clients degrade silently to the deterministic result.
 
 interface ParseLabelLine {
   text: string
@@ -42,9 +42,12 @@ const UPSTREAM_TIMEOUT_MS = 10_000
 
 // In-memory per-IP rate limiting. This resets on every serverless cold start
 // and is tracked per concurrent instance, so it's abuse damping rather than a
-// hard quota - the real ceiling for a personal app is the Gemini daily quota.
+// hard quota - the real ceiling for a personal app is the Gemini daily quota
+// (1,500 req/day free tier), nowhere near this hourly cap even now that the
+// route is called on every online scan rather than just as an occasional
+// fallback.
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
-const RATE_LIMIT_MAX_REQUESTS = 10
+const RATE_LIMIT_MAX_REQUESTS = 30
 const RATE_LIMIT_MAX_KEYS = 1000
 const requestLog = new Map<string, number[]>()
 

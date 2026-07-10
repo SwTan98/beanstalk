@@ -1,5 +1,4 @@
 import {
-  LABEL_PARSE_CONFIDENCE_THRESHOLD,
   parseBeanLabel,
   type LabelParseResult,
   type ParsedBeanFields
@@ -7,21 +6,22 @@ import {
 import { mergeLabelParse } from '~/utils/label-merge'
 import type { OcrLine } from '~/utils/ocr-engine'
 
-export type LabelParseSource = 'deterministic' | 'blended' | 'offline-basic'
+// 'gemini': the polish call succeeded and its fields were merged in as
+// primary. 'deterministic': online, but the Gemini call failed, errored, or
+// was rate-limited - the local parse alone is what's shown. 'offline-basic':
+// the device was offline, so the call was never attempted.
+export type LabelParseSource = 'gemini' | 'deterministic' | 'offline-basic'
 
 const POLISH_TIMEOUT_MS = 6000
 
-// Two-layer label parse: the deterministic parser always runs; when it scores
-// below the confidence threshold and the client is online, the OCR lines are
-// posted to the optional /api/parse-label polish endpoint. Every failure mode
-// (offline, timeout, 4xx/5xx, static build without server routes) degrades
-// silently to the local result - scanning never depends on the network.
+// The deterministic parser always runs first (it's free/instant) and is the
+// fallback result. Gemini is the primary source: every online scan posts the
+// OCR lines to /api/parse-label and its response wins per field via
+// mergeLabelParse. Every failure mode (offline, timeout, 4xx/5xx, static
+// build without server routes) degrades silently to the local result -
+// scanning never depends on the network.
 export async function parseLabelSmart(lines: OcrLine[]): Promise<{ result: LabelParseResult; source: LabelParseSource }> {
   const base = parseBeanLabel(lines)
-
-  if (base.confidence >= LABEL_PARSE_CONFIDENCE_THRESHOLD) {
-    return { result: base, source: 'deterministic' }
-  }
 
   // Only an explicit false means offline - environments without the API
   // (older webviews) should still attempt the polish call.
@@ -36,7 +36,7 @@ export async function parseLabelSmart(lines: OcrLine[]): Promise<{ result: Label
       body: { lines: lines.map(({ text, confidence }) => ({ text, confidence })) }
     })
 
-    return { result: mergeLabelParse(base, llm), source: 'blended' }
+    return { result: mergeLabelParse(base, llm), source: 'gemini' }
   }
   catch {
     return { result: base, source: 'deterministic' }
