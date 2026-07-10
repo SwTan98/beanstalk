@@ -53,6 +53,7 @@ Additional structural notes:
 - **No Pinia.** State management is intentionally `useState()` + composables per `beanstalk.md`; don't introduce Pinia or another state library unless explicitly asked.
 - **Storage layer is `idb`, not localStorage/Dexie.** Keep it this way unless asked otherwise.
 - **`public/ocr/` holds the self-hosted PP-OCR models and onnxruntime-web wasm** used by the bag-photo scanner (`app/utils/ocr-engine.ts`). They are lazy-loaded on first scan and stored by `ocr-engine.ts` itself via the Cache API (`beanstalk-ocr-v1`), independent of the service worker — never add them to the workbox precache, and keep the ort wasm files version-matched to the installed `onnxruntime-web` (copy from `node_modules/onnxruntime-web/dist/`).
+- **The scan flow may consult `/api/parse-label`** (Gemini polish) when online and the deterministic parse scores below `LABEL_PARSE_CONFIDENCE_THRESHOLD` (`useLabelParse.ts`/`label-merge.ts`); every network failure degrades silently to the local result — scanning must always work fully offline.
 - Code style (see `app/utils/*.ts`): single quotes, no semicolons, 2-space indent. `nuxt.config.ts` (project root) uses double quotes/semicolons — match whichever file you're editing.
 - `tsconfig.json` only references generated `.nuxt/tsconfig.*.json` files — don't hand-roll a separate TS config; rely on Nuxt's generated project references.
 - Don't edit generated output: `.nuxt/`, `.output/`, `.data`, `.nitro`, `.cache`, `dist`, `node_modules`.

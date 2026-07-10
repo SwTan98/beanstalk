@@ -163,7 +163,7 @@ function toIsoDate(year: number, month: number, day: number): string | null {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-function isPlausibleRoastDate(isoDate: string, now: Date): boolean {
+export function isPlausibleRoastDate(isoDate: string, now: Date = new Date()): boolean {
   const timestamp = Date.parse(`${isoDate}T00:00:00Z`)
   const earliest = new Date(now)
   earliest.setUTCMonth(earliest.getUTCMonth() - ROAST_DATE_MAX_AGE_MONTHS)
@@ -1050,7 +1050,7 @@ function isTastingNotesLine(text: string): boolean {
 // --- Tasting notes ------------------------------------------------------------
 
 const NOTE_SPLIT_PATTERN = /[,;·•|/]+|\s+&\s+|\s+and\s+/i
-const MAX_TASTING_NOTES = 5
+export const MAX_TASTING_NOTES = 5
 
 function splitTastingNotes(value: string): string[] {
   return value

@@ -1,5 +1,6 @@
-import { parseBeanLabel, type LabelParseResult } from '~/utils/bean-label-parser'
+import type { LabelParseResult } from '~/utils/bean-label-parser'
 import { ensureOcrReady, recognizeBagPhoto } from '~/utils/ocr-engine'
+import { parseLabelSmart, type LabelParseSource } from '~/composables/useLabelParse'
 
 export type PhotoScanStage =
   | 'idle'
@@ -32,6 +33,7 @@ export function usePhotoScan() {
   const errorMessage = ref('')
   const downloadProgress = ref(0)
   const result = ref<LabelParseResult | null>(null)
+  const scanSource = ref<LabelParseSource>('deterministic')
 
   const isBusy = computed(() => stage.value !== 'idle' && stage.value !== 'done' && stage.value !== 'error')
 
@@ -40,6 +42,7 @@ export function usePhotoScan() {
     errorMessage.value = ''
     downloadProgress.value = 0
     result.value = null
+    scanSource.value = 'deterministic'
   }
 
   async function startScan(file: File) {
@@ -60,7 +63,9 @@ export function usePhotoScan() {
 
       stage.value = 'recognizing'
       const lines = await recognizeBagPhoto(canvas)
-      result.value = parseBeanLabel(lines)
+      const parsed = await parseLabelSmart(lines)
+      result.value = parsed.result
+      scanSource.value = parsed.source
       stage.value = 'done'
     }
     catch (error) {
@@ -75,6 +80,7 @@ export function usePhotoScan() {
     errorMessage,
     downloadProgress,
     result,
+    scanSource,
     isBusy,
     startScan,
     reset
