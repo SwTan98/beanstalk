@@ -9,6 +9,8 @@ export interface Bean {
   varietal: string
   process: string
   roastProfile: RoastProfile
+  roastDate: string | null
+  tastingNotes: string[]
   startWeight: number
   remaining: number
   threshold: number
@@ -43,6 +45,8 @@ export interface BeanDraft {
   varietal: string
   process: string
   roastProfile: RoastProfile
+  roastDate?: string | null
+  tastingNotes?: string[]
   startWeight: number
   threshold: number
 }

@@ -115,6 +115,8 @@ export function useBeanstalk() {
       varietal: normalizeText(input.varietal),
       process: normalizeText(input.process),
       roastProfile: input.roastProfile,
+      roastDate: input.roastDate ?? null,
+      tastingNotes: normalizeTastingNotes(input.tastingNotes ?? []),
       startWeight,
       remaining: startWeight,
       threshold,

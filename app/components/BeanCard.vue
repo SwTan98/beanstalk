@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { Archive, AlertTriangle, Bean as BeanIcon } from "@lucide/vue";
 import {
+  formatDate,
   formatWeight,
   isBeanLowStock,
+  noteToDisplayLabel,
   valueToDisplayLabel,
 } from "~/utils/domain";
 import type { Bean } from "~/utils/types";
@@ -58,6 +60,13 @@ defineEmits<{
             {{ valueToDisplayLabel(bean.roastProfile) }}
           </span>
         </div>
+
+        <p
+          v-if="bean.tastingNotes.length > 0"
+          class="mt-3 truncate text-sm text-espresso-600"
+        >
+          {{ bean.tastingNotes.map(noteToDisplayLabel).join(" · ") }}
+        </p>
       </div>
 
       <button
@@ -126,6 +135,20 @@ defineEmits<{
           class="mt-1.5 break-words text-sm font-semibold leading-5 text-espresso-900"
         >
           {{ bean.varietal || "—" }}
+        </dd>
+      </div>
+      <div
+        class="min-w-0 rounded-2xl border border-cream-100 bg-cream-50 px-3.5 py-3"
+      >
+        <dt
+          class="text-xs font-medium uppercase tracking-[0.08em] text-espresso-500"
+        >
+          Roast date
+        </dt>
+        <dd
+          class="mt-1.5 break-words text-sm font-semibold leading-5 text-espresso-900"
+        >
+          {{ bean.roastDate ? formatDate(bean.roastDate) : "—" }}
         </dd>
       </div>
       <div

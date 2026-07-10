@@ -1,5 +1,5 @@
 import type { IDBPDatabase } from 'idb'
-import { normalizeText, parseDurationSeconds } from '~/utils/domain'
+import { normalizeTastingNotes, normalizeText, parseDurationSeconds } from '~/utils/domain'
 import type { Bean, Brew } from '~/utils/types'
 import {
   DATABASE_NAME,
@@ -32,7 +32,9 @@ function beanFromStorage(bean: StoredBean): Bean {
   return {
     ...bean,
     region: normalizeText(bean.region),
-    varietal: normalizeText(bean.varietal)
+    varietal: normalizeText(bean.varietal),
+    roastDate: typeof bean.roastDate === 'string' && bean.roastDate ? bean.roastDate : null,
+    tastingNotes: normalizeTastingNotes(Array.isArray(bean.tastingNotes) ? bean.tastingNotes : [])
   }
 }
 
@@ -40,7 +42,9 @@ function beanToStorage(bean: Bean): StoredBean {
   return {
     ...bean,
     region: normalizeText(bean.region),
-    varietal: normalizeText(bean.varietal)
+    varietal: normalizeText(bean.varietal),
+    roastDate: bean.roastDate,
+    tastingNotes: normalizeTastingNotes(bean.tastingNotes)
   }
 }
 
@@ -60,9 +64,30 @@ async function migrateToSchemaVersion1(database: IDBPDatabase<BeanstalkDatabase>
     await brewStore.put(brewToStorage(brewFromStorage(storedBrew)))
   }
 
+  // Each migration records its own version literal so an interrupted chain
+  // resumes from the right step rather than skipping ahead.
   await metaStore.put({
     key: SCHEMA_VERSION_KEY,
-    value: STORAGE_SCHEMA_VERSION
+    value: 1
+  })
+  await transaction.done
+}
+
+// Schema version 2: beans gained roastDate/tastingNotes. Rewriting each bean
+// through beanFromStorage/beanToStorage defaults old records to null/[].
+async function migrateToSchemaVersion2(database: IDBPDatabase<BeanstalkDatabase>) {
+  const transaction = database.transaction(['beans', 'meta'], 'readwrite')
+  const beanStore = transaction.objectStore('beans')
+  const metaStore = transaction.objectStore('meta')
+  const storedBeans = await beanStore.getAll()
+
+  for (const storedBean of storedBeans) {
+    await beanStore.put(beanToStorage(beanFromStorage(storedBean)))
+  }
+
+  await metaStore.put({
+    key: SCHEMA_VERSION_KEY,
+    value: 2
   })
   await transaction.done
 }
@@ -77,6 +102,10 @@ async function ensureSchemaCompatibility(database: IDBPDatabase<BeanstalkDatabas
 
   if (persistedVersion < 1) {
     await migrateToSchemaVersion1(database)
+  }
+
+  if (persistedVersion < 2) {
+    await migrateToSchemaVersion2(database)
   }
 }
 

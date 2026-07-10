@@ -1,13 +1,5 @@
 import tailwindcss from "@tailwindcss/vite";
-
-const appBaseURL = (() => {
-  const value = process.env.NUXT_APP_BASE_URL ?? "/";
-  return value.endsWith("/") ? value : `${value}/`;
-})();
-
-function withBase(path: string) {
-  return `${appBaseURL}${path.replace(/^\/+/, "")}`;
-}
+import { GEMINI_FUNCTION_MAX_DURATION_S } from "./shared/utils/timeouts";
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
@@ -15,7 +7,6 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   ssr: false,
   app: {
-    baseURL: appBaseURL,
     head: {
       title: "BeanStalk",
       meta: [
@@ -44,7 +35,7 @@ export default defineNuxtConfig({
       link: [
         {
           rel: "apple-touch-icon",
-          href: withBase("pwa-192x192.png"),
+          href: "/pwa-192x192.png",
         },
       ],
     },
@@ -75,6 +66,14 @@ export default defineNuxtConfig({
         "/insights",
       ],
     },
+    // Vercel-only: the default Hobby function limit (~10s) is too tight for
+    // a cold Gemini structured-output call. See shared/utils/timeouts.ts for
+    // how this relates to the server/client timeout budget.
+    vercel: {
+      functions: {
+        maxDuration: GEMINI_FUNCTION_MAX_DURATION_S,
+      },
+    },
   },
   pwa: {
     registerType: "autoUpdate",
@@ -86,21 +85,21 @@ export default defineNuxtConfig({
       theme_color: "#fcfaf7",
       background_color: "#fcfaf7",
       display: "standalone",
-      start_url: appBaseURL,
-      scope: appBaseURL,
+      start_url: "/",
+      scope: "/",
       icons: [
         {
-          src: withBase("pwa-192x192.png"),
+          src: "/pwa-192x192.png",
           sizes: "192x192",
           type: "image/png",
         },
         {
-          src: withBase("pwa-512x512.png"),
+          src: "/pwa-512x512.png",
           sizes: "512x512",
           type: "image/png",
         },
         {
-          src: withBase("pwa-512x512.png"),
+          src: "/pwa-512x512.png",
           sizes: "512x512",
           type: "image/png",
           purpose: "maskable",
@@ -113,6 +112,8 @@ export default defineNuxtConfig({
       // shell; ocr-engine.ts fetches them lazily on first scan and stores
       // them itself via the Cache API (beanstalk-ocr-v1).
       globIgnores: ["ocr/**"],
+      // Server routes are real endpoints, never SPA navigations.
+      navigateFallbackDenylist: [/^\/api\//],
     },
     client: {
       installPrompt: true,

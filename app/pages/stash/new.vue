@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeft } from '@lucide/vue'
-import type { ParsedBeanFields } from '~/utils/bean-label-parser'
+import { LABEL_FIELD_KEYS, splitTastingNotes, type LabelParseResult } from '~/utils/bean-label-parser'
 import { DEFAULT_BEAN_THRESHOLD, ROAST_PROFILES } from '~/utils/domain'
 import type { RoastProfile } from '~/utils/types'
 
@@ -15,17 +15,24 @@ const draft = reactive({
   varietal: '',
   process: '',
   roastProfile: 'medium' as RoastProfile,
+  roastDate: null as string | null,
   startWeight: 250,
   threshold: DEFAULT_BEAN_THRESHOLD
 })
+
+// Comma-separated in the input; split at submit and normalized by createBean.
+const tastingNotesText = ref('')
 
 const isScanBusy = ref(false)
 const errorMessage = ref('')
 const isSubmitting = ref(false)
 
+// Marks which inputs a scan filled, so the user knows what to verify.
+const prefilledFields = ref(new Set<string>())
+
 // A scan replaces the whole form: scannable fields reset to their defaults,
 // then everything the parser found is applied. Threshold is never scanned.
-function onPhotoScanned(parsedFields: ParsedBeanFields) {
+function onPhotoScanned(parsedFields: LabelParseResult) {
   draft.name = parsedFields.name ?? ''
   draft.roaster = parsedFields.roaster ?? ''
   draft.origin = parsedFields.origin ?? ''
@@ -33,15 +40,41 @@ function onPhotoScanned(parsedFields: ParsedBeanFields) {
   draft.varietal = parsedFields.varietal ?? ''
   draft.process = parsedFields.process ?? ''
   draft.roastProfile = parsedFields.roastProfile ?? 'medium'
+  draft.roastDate = parsedFields.roastDate
   draft.startWeight = parsedFields.startWeight ?? 250
+  tastingNotesText.value = parsedFields.tastingNotes.join(', ')
+
+  prefilledFields.value = new Set(
+    LABEL_FIELD_KEYS.filter((key) => {
+      const value = parsedFields[key]
+      return Array.isArray(value) ? value.length > 0 : value !== null
+    })
+  )
 }
+
+function clearPrefill(key: string) {
+  // Vue's reactive() instruments Set mutation methods directly, so this
+  // in-place delete is tracked without needing to clone and reassign.
+  prefilledFields.value.delete(key)
+}
+
+function prefillClass(key: string) {
+  return prefilledFields.value.has(key) ? 'ring-1 ring-espresso-300 bg-cream-50' : ''
+}
+
+const roastDateInput = computed({
+  get: () => draft.roastDate ?? '',
+  set: (value: string) => {
+    draft.roastDate = value || null
+  }
+})
 
 async function submitForm() {
   errorMessage.value = ''
   isSubmitting.value = true
 
   try {
-    await createBean({ ...draft })
+    await createBean({ ...draft, tastingNotes: splitTastingNotes(tastingNotesText.value) })
     await router.push('/stash')
   }
   catch (error) {
@@ -73,55 +106,70 @@ async function submitForm() {
       <div class="surface-card space-y-4 px-5 py-5">
         <div>
           <label class="field-label" for="name">Bean name</label>
-          <input id="name" v-model="draft.name" type="text" class="field-input" placeholder="Ethiopia Worka Chelbesa">
+          <input id="name" v-model="draft.name" type="text" class="field-input" :class="prefillClass('name')" placeholder="Ethiopia Worka Chelbesa" @input="clearPrefill('name')">
         </div>
 
         <div>
           <label class="field-label" for="roaster">Roaster</label>
-          <input id="roaster" v-model="draft.roaster" type="text" class="field-input" placeholder="e.g. Prodigal">
+          <input id="roaster" v-model="draft.roaster" type="text" class="field-input" :class="prefillClass('roaster')" placeholder="e.g. Prodigal" @input="clearPrefill('roaster')">
         </div>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="field-label" for="origin">Origin</label>
-            <input id="origin" v-model="draft.origin" type="text" class="field-input" placeholder="Ethiopia">
+            <input id="origin" v-model="draft.origin" type="text" class="field-input" :class="prefillClass('origin')" placeholder="Ethiopia" @input="clearPrefill('origin')">
           </div>
 
           <div>
             <label class="field-label" for="region">Region</label>
-            <input id="region" v-model="draft.region" type="text" class="field-input" placeholder="Guji">
+            <input id="region" v-model="draft.region" type="text" class="field-input" :class="prefillClass('region')" placeholder="Guji" @input="clearPrefill('region')">
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="field-label" for="varietal">Varietal</label>
-            <input id="varietal" v-model="draft.varietal" type="text" class="field-input" placeholder="Heirloom">
+            <input id="varietal" v-model="draft.varietal" type="text" class="field-input" :class="prefillClass('varietal')" placeholder="Heirloom" @input="clearPrefill('varietal')">
           </div>
 
           <div>
             <label class="field-label" for="process">Process</label>
-            <input id="process" v-model="draft.process" type="text" class="field-input" placeholder="Washed">
+            <input id="process" v-model="draft.process" type="text" class="field-input" :class="prefillClass('process')" placeholder="Washed" @input="clearPrefill('process')">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="field-label" for="roastProfile">Roast profile</label>
+            <select id="roastProfile" v-model="draft.roastProfile" class="field-input" :class="prefillClass('roastProfile')" @change="clearPrefill('roastProfile')">
+              <option
+                v-for="profile in ROAST_PROFILES"
+                :key="profile.value"
+                :value="profile.value"
+              >
+                {{ profile.label }}
+              </option>
+            </select>
+          </div>
+
+          <div>
+            <label class="field-label" for="roastDate">Roast date</label>
+            <input id="roastDate" v-model="roastDateInput" type="date" class="field-input" :class="prefillClass('roastDate')" @input="clearPrefill('roastDate')">
           </div>
         </div>
 
         <div>
-          <label class="field-label" for="roastProfile">Roast profile</label>
-          <select id="roastProfile" v-model="draft.roastProfile" class="field-input">
-            <option
-              v-for="profile in ROAST_PROFILES"
-              :key="profile.value"
-              :value="profile.value"
-            >
-              {{ profile.label }}
-            </option>
-          </select>
+          <label class="field-label" for="tastingNotes">Tasting notes</label>
+          <input id="tastingNotes" v-model="tastingNotesText" type="text" class="field-input" :class="prefillClass('tastingNotes')" placeholder="Blackberry, lemon zest, jasmine" @input="clearPrefill('tastingNotes')">
+          <p class="field-help">
+            Separate notes with commas.
+          </p>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="field-label" for="startWeight">Starting weight (g)</label>
-            <input id="startWeight" v-model.number="draft.startWeight" min="0.1" step="0.1" type="number" class="field-input">
+            <input id="startWeight" v-model.number="draft.startWeight" min="0.1" step="0.1" type="number" class="field-input" :class="prefillClass('startWeight')" @input="clearPrefill('startWeight')">
           </div>
 
           <div>

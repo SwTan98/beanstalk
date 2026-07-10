@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { Camera, ImagePlus } from '@lucide/vue'
-import type { ParsedBeanFields } from '~/utils/bean-label-parser'
+import type { LabelParseResult } from '~/utils/bean-label-parser'
 
 const emit = defineEmits<{
-  scanned: [ParsedBeanFields]
+  scanned: [LabelParseResult]
   busy: [boolean]
 }>()
 
@@ -12,6 +12,7 @@ const {
   errorMessage,
   downloadProgress,
   result,
+  scanSource,
   isBusy,
   startScan,
   reset
@@ -109,17 +110,25 @@ const downloadPercent = computed(() => Math.round(downloadProgress.value * 100))
     <div v-else-if="stage === 'recognizing'" class="flex items-center gap-3 py-2">
       <span class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-espresso-300 border-t-transparent" />
       <p class="field-help">
-        Reading the label… this can take a few seconds
+        Reading the label… this can take up to 20 seconds online
       </p>
     </div>
 
-    <div v-else-if="stage === 'done'" class="flex items-center justify-between gap-3">
-      <p class="field-help">
-        Photo scanned. The fields below were replaced with what we could read - please review them.
+    <div v-else-if="stage === 'done'" class="space-y-2">
+      <div class="flex items-center justify-between gap-3">
+        <p class="field-help">
+          Photo scanned. The fields below were replaced with what we could read - please review them.
+        </p>
+        <button type="button" class="ghost-button" @click="reset">
+          Rescan
+        </button>
+      </div>
+      <p v-if="scanSource === 'offline-basic'" class="field-help">
+        Offline - basic scan used.
       </p>
-      <button type="button" class="ghost-button" @click="reset">
-        Rescan
-      </button>
+      <p v-else-if="scanSource === 'deterministic'" class="field-help">
+        Basic scan used.
+      </p>
     </div>
 
     <div v-else-if="stage === 'error'" class="space-y-3">

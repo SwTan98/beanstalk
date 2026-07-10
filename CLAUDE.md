@@ -14,27 +14,28 @@ Use `pnpm` (a `pnpm-lock.yaml` is committed).
 | --- | --- | --- |
 | Install dependencies | `pnpm install` | Runs `nuxt prepare` via `postinstall`. |
 | Start dev server | `pnpm dev` | http://localhost:3000 |
-| Build (server) | `pnpm build` | Produces Nitro output in `.output/`. |
-| Generate static site | `pnpm generate` | Static output in `.output/public`; this is the deployment target (see below). |
+| Build (server) | `pnpm build` | Produces Nitro output in `.output/`; this is what Vercel runs (see below). |
+| Generate static site | `pnpm generate` | Static output in `.output/public`. Local static-build check only — a static build has no `/api` server routes. |
 | Preview production build | `pnpm preview` | Runs the built app locally. |
-| Run the built server directly | `node .output/server/index.mjs` | Matches the current Nitro `node-server` output. |
+| Run the built server directly | `node .output/server/index.mjs` | Matches the local Nitro `node-server` output. |
 
 There are no test or lint scripts defined in `package.json` — do not assume `pnpm test`/`pnpm lint` exist. When verifying changes, run `pnpm dev` (or `pnpm generate`) and check the app in a browser.
 
 ## Deployment
 
-`.github/workflows/deploy-pages.yml` deploys to GitHub Pages on push to `master`: it runs `pnpm generate` and publishes `.output/public`. The base URL is computed from `NUXT_APP_BASE_URL` (root `/` when `public/CNAME` is present, otherwise `/<repo-name>/`), and `nuxt.config.ts` derives all asset/manifest URLs from that same variable via the `withBase()` helper. Keep any new hardcoded asset paths going through `withBase()` rather than assuming root-relative paths.
+The app deploys to Vercel via its git integration: Vercel auto-detects Nuxt, runs `pnpm install` + `nuxt build` (Nitro `vercel` preset), and serves prerendered pages statically with `server/api/` routes as serverless functions. **Do not switch the Vercel build command to `pnpm generate`** — a static build drops the server routes. The custom domain (`beanstalk.swtan98.com`) is configured in the Vercel dashboard, not in the repo. The base URL is always `/`; write asset paths root-relative (there is no `withBase()` helper anymore). Server env vars (`GEMINI_API_KEY`, `GEMINI_MODEL`) are set in Vercel project settings — never expose them as `NUXT_PUBLIC_*`.
 
-`nitro.prerender.routes` in `nuxt.config.ts` lists every route that must be prerendered for the static build (`/`, `/stash`, `/stash/new`, `/journal`, `/journal/new`, `/insights`). **New top-level routes must be added to this list**, or they won't exist in the static/PWA build.
+`nitro.prerender.routes` in `nuxt.config.ts` lists every route that is prerendered to static HTML (`/`, `/stash`, `/stash/new`, `/journal`, `/journal/new`, `/insights`) — these HTML files are what the workbox precache picks up, which is what makes deep links load offline. **New top-level routes must be added to this list**: without it a route still works online via the SPA fallback, but won't be precached for offline use.
 
 ## Architecture
 
-Four layers, in order of dependency (upper layers depend on lower ones, never the reverse):
+Five layers, in order of dependency (upper layers depend on lower ones, never the reverse):
 
 1. **Pages/components** (`app/pages/`, `app/components/`) — collect input and render state. Should not talk to IndexedDB directly and should not contain business rules.
 2. **`app/composables/useBeanstalk.ts`** — the single composable for all bean/brew state. Owns in-memory reactive state (via `useState`), mutation methods (`createBean`, `archiveBean`, `createBrew`, `updateBrew`, `deleteBrew`), and derived/computed values (`activeBeans`, `lowStockBeans`, `topTastingNotes`, `dialingInTip`, etc.). There is no Pinia/Vuex — all app state flows through this one composable's `useState` keys (`beanstalk:beans`, `beanstalk:brews`, ...), which is why it's global rather than instantiated per-component.
 3. **`app/utils/storage.ts`** — the IndexedDB data-access layer (via `idb`). Exposes `listBeans`/`saveBean`/`archiveBean`, `listBrews`/`getBrew`/`createBrewWithBeanUpdate`/`updateBrewWithBeanAdjustments`/`deleteBrewWithBeanRestore`. This is the *only* place that reads/writes stores, and it's where the core business rule lives: **a brew's `dose` is atomically deducted from/restored to its bean's `remaining` in the same IndexedDB transaction**, including when editing a brew across two different beans.
 4. **`app/utils/domain.ts` / `app/utils/types.ts`** — pure, framework-free domain logic and types shared by the layers above: `Bean`/`Brew`/`BeanDraft`/`BrewDraft` types, validation-adjacent constants (`DEFAULT_BEAN_THRESHOLD`, `ROAST_PROFILES`, `BREW_METHODS`), formatting helpers (`formatWeight`, `formatRatio`, `formatDuration`), sorting (`sortBeans`, `sortBrews`), and the rule-based `getDialingInTip()` insight helper.
+5. **`server/api/`** (Nitro server routes) — **optional enhancers only**. The app must remain fully functional offline without them: clients call them opportunistically and degrade silently when they fail (see `parse-label.post.ts` and its caller). Server routes never touch IndexedDB state, hold no business rules the client depends on, and no server route may become required for the core stash/journal/insights flows.
 
 Additional structural notes:
 
@@ -52,6 +53,7 @@ Additional structural notes:
 - **No Pinia.** State management is intentionally `useState()` + composables per `beanstalk.md`; don't introduce Pinia or another state library unless explicitly asked.
 - **Storage layer is `idb`, not localStorage/Dexie.** Keep it this way unless asked otherwise.
 - **`public/ocr/` holds the self-hosted PP-OCR models and onnxruntime-web wasm** used by the bag-photo scanner (`app/utils/ocr-engine.ts`). They are lazy-loaded on first scan and stored by `ocr-engine.ts` itself via the Cache API (`beanstalk-ocr-v1`), independent of the service worker — never add them to the workbox precache, and keep the ort wasm files version-matched to the installed `onnxruntime-web` (copy from `node_modules/onnxruntime-web/dist/`).
+- **The scan flow consults `/api/parse-label` on every online scan** and prefers its result: Gemini is the primary parser, and the deterministic parser (`bean-label-parser.ts`) is the offline/failure fallback, always computed locally first (`useLabelParse.ts`/`label-merge.ts`). Every network failure degrades silently to the deterministic result — scanning must always work fully offline.
 - Code style (see `app/utils/*.ts`): single quotes, no semicolons, 2-space indent. `nuxt.config.ts` (project root) uses double quotes/semicolons — match whichever file you're editing.
 - `tsconfig.json` only references generated `.nuxt/tsconfig.*.json` files — don't hand-roll a separate TS config; rely on Nuxt's generated project references.
 - Don't edit generated output: `.nuxt/`, `.output/`, `.data`, `.nitro`, `.cache`, `dist`, `node_modules`.
