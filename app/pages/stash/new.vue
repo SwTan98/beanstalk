@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeft } from '@lucide/vue'
-import { LABEL_FIELD_KEYS, type LabelParseResult } from '~/utils/bean-label-parser'
+import { LABEL_FIELD_KEYS, splitTastingNotes, type LabelParseResult } from '~/utils/bean-label-parser'
 import { DEFAULT_BEAN_THRESHOLD, ROAST_PROFILES } from '~/utils/domain'
 import type { RoastProfile } from '~/utils/types'
 
@@ -53,13 +53,9 @@ function onPhotoScanned(parsedFields: LabelParseResult) {
 }
 
 function clearPrefill(key: string) {
-  if (!prefilledFields.value.has(key)) {
-    return
-  }
-
-  const next = new Set(prefilledFields.value)
-  next.delete(key)
-  prefilledFields.value = next
+  // Vue's reactive() instruments Set mutation methods directly, so this
+  // in-place delete is tracked without needing to clone and reassign.
+  prefilledFields.value.delete(key)
 }
 
 function prefillClass(key: string) {
@@ -78,7 +74,7 @@ async function submitForm() {
   isSubmitting.value = true
 
   try {
-    await createBean({ ...draft, tastingNotes: tastingNotesText.value.split(/[,;]/) })
+    await createBean({ ...draft, tastingNotes: splitTastingNotes(tastingNotesText.value) })
     await router.push('/stash')
   }
   catch (error) {

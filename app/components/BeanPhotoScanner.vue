@@ -110,7 +110,7 @@ const downloadPercent = computed(() => Math.round(downloadProgress.value * 100))
     <div v-else-if="stage === 'recognizing'" class="flex items-center gap-3 py-2">
       <span class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-espresso-300 border-t-transparent" />
       <p class="field-help">
-        Reading the label… this can take a few seconds
+        Reading the label… this can take up to 20 seconds online
       </p>
     </div>
 
