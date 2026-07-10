@@ -44,6 +44,62 @@ const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 // client doesn't abort before this timeout could even fire).
 const UPSTREAM_TIMEOUT_MS = 20_000
 
+// Google's own guidance: retry 429 (rate limited) and 503 (model overloaded)
+// with backoff. Both return fast, so this doesn't meaningfully eat into the
+// timeout budget above. Anything else (bad request, auth, unknown model, or
+// a network-layer hang with no statusCode) isn't retried - it won't succeed
+// on a second attempt.
+const RETRY_STATUS_CODES = new Set([429, 503])
+const MAX_ATTEMPTS = 2
+const RETRY_DELAY_MS = 750
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+interface GeminiGenerateContentResponse {
+  candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+}
+
+// Retries transient failures (429/503) within a single shared deadline, so
+// total time across all attempts still respects UPSTREAM_TIMEOUT_MS no
+// matter how many retries happen - each attempt gets whatever time remains,
+// not a fresh timeout of its own.
+async function fetchGeminiWithRetry(url: string, apiKey: string, requestBody: Record<string, unknown>): Promise<GeminiGenerateContentResponse> {
+  const deadline = Date.now() + UPSTREAM_TIMEOUT_MS
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const remaining = deadline - Date.now()
+
+    if (remaining <= 0) {
+      throw new Error('parse-label: no time remaining for gemini request')
+    }
+
+    try {
+      return await $fetch<GeminiGenerateContentResponse>(url, {
+        method: 'POST',
+        timeout: remaining,
+        headers: { 'x-goog-api-key': apiKey },
+        body: requestBody
+      })
+    }
+    catch (error) {
+      const statusCode = (error as { statusCode?: number })?.statusCode
+      const canRetry = attempt < MAX_ATTEMPTS && statusCode !== undefined && RETRY_STATUS_CODES.has(statusCode)
+
+      if (!canRetry) {
+        throw error
+      }
+
+      console.error(`parse-label: gemini returned ${statusCode}, retrying`)
+      await wait(RETRY_DELAY_MS)
+    }
+  }
+
+  // Unreachable: the loop above always returns or throws.
+  throw new Error('parse-label: retry loop exited unexpectedly')
+}
+
 // In-memory per-IP rate limiting. This resets on every serverless cold start
 // and is tracked per concurrent instance, so it's abuse damping rather than a
 // hard quota - the real ceiling for a personal app is the Gemini daily quota
@@ -242,13 +298,10 @@ export default defineEventHandler(async (event) => {
   let responseText: string | undefined
 
   try {
-    const response = await $fetch<{
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
-    }>(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST',
-      timeout: UPSTREAM_TIMEOUT_MS,
-      headers: { 'x-goog-api-key': apiKey },
-      body: {
+    const response = await fetchGeminiWithRetry(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      apiKey,
+      {
         contents: [
           {
             role: 'user',
@@ -261,7 +314,7 @@ export default defineEventHandler(async (event) => {
           responseSchema: buildResponseSchema()
         }
       }
-    })
+    )
 
     responseText = response.candidates?.[0]?.content?.parts?.[0]?.text
   }
