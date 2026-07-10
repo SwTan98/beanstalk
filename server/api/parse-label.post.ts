@@ -228,7 +228,9 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 503, statusMessage: 'Label parsing service is not configured.' })
   }
 
-  const model = process.env.GEMINI_MODEL ?? 'gemini-3-flash'
+  // Use the rolling alias rather than a dated model id - Google deprecates
+  // dated flash versions on its own schedule, and a stale id 404s here.
+  const model = process.env.GEMINI_MODEL ?? 'gemini-flash-latest'
   const linesText = body.lines
     .map((line) => `${line.text} [${line.confidence.toFixed(2)}]`)
     .join('\n')
