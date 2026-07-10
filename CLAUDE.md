@@ -29,12 +29,13 @@ The app deploys to Vercel via its git integration: Vercel auto-detects Nuxt, run
 
 ## Architecture
 
-Four layers, in order of dependency (upper layers depend on lower ones, never the reverse):
+Five layers, in order of dependency (upper layers depend on lower ones, never the reverse):
 
 1. **Pages/components** (`app/pages/`, `app/components/`) — collect input and render state. Should not talk to IndexedDB directly and should not contain business rules.
 2. **`app/composables/useBeanstalk.ts`** — the single composable for all bean/brew state. Owns in-memory reactive state (via `useState`), mutation methods (`createBean`, `archiveBean`, `createBrew`, `updateBrew`, `deleteBrew`), and derived/computed values (`activeBeans`, `lowStockBeans`, `topTastingNotes`, `dialingInTip`, etc.). There is no Pinia/Vuex — all app state flows through this one composable's `useState` keys (`beanstalk:beans`, `beanstalk:brews`, ...), which is why it's global rather than instantiated per-component.
 3. **`app/utils/storage.ts`** — the IndexedDB data-access layer (via `idb`). Exposes `listBeans`/`saveBean`/`archiveBean`, `listBrews`/`getBrew`/`createBrewWithBeanUpdate`/`updateBrewWithBeanAdjustments`/`deleteBrewWithBeanRestore`. This is the *only* place that reads/writes stores, and it's where the core business rule lives: **a brew's `dose` is atomically deducted from/restored to its bean's `remaining` in the same IndexedDB transaction**, including when editing a brew across two different beans.
 4. **`app/utils/domain.ts` / `app/utils/types.ts`** — pure, framework-free domain logic and types shared by the layers above: `Bean`/`Brew`/`BeanDraft`/`BrewDraft` types, validation-adjacent constants (`DEFAULT_BEAN_THRESHOLD`, `ROAST_PROFILES`, `BREW_METHODS`), formatting helpers (`formatWeight`, `formatRatio`, `formatDuration`), sorting (`sortBeans`, `sortBrews`), and the rule-based `getDialingInTip()` insight helper.
+5. **`server/api/`** (Nitro server routes) — **optional enhancers only**. The app must remain fully functional offline without them: clients call them opportunistically and degrade silently when they fail (see `parse-label.post.ts` and its caller). Server routes never touch IndexedDB state, hold no business rules the client depends on, and no server route may become required for the core stash/journal/insights flows.
 
 Additional structural notes:
 
