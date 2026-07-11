@@ -115,33 +115,33 @@ async function submitForm() {
         </div>
 
         <div class="grid grid-cols-2 gap-4">
-          <div>
+          <div class="flex flex-col">
             <label class="field-label" for="origin">Origin</label>
-            <input id="origin" v-model="draft.origin" type="text" class="field-input" :class="prefillClass('origin')" placeholder="Ethiopia" @input="clearPrefill('origin')">
+            <input id="origin" v-model="draft.origin" type="text" class="field-input mt-auto" :class="prefillClass('origin')" placeholder="Ethiopia" @input="clearPrefill('origin')">
           </div>
 
-          <div>
+          <div class="flex flex-col">
             <label class="field-label" for="region">Region</label>
-            <input id="region" v-model="draft.region" type="text" class="field-input" :class="prefillClass('region')" placeholder="Guji" @input="clearPrefill('region')">
+            <input id="region" v-model="draft.region" type="text" class="field-input mt-auto" :class="prefillClass('region')" placeholder="Guji" @input="clearPrefill('region')">
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
-          <div>
+          <div class="flex flex-col">
             <label class="field-label" for="varietal">Varietal</label>
-            <input id="varietal" v-model="draft.varietal" type="text" class="field-input" :class="prefillClass('varietal')" placeholder="Heirloom" @input="clearPrefill('varietal')">
+            <input id="varietal" v-model="draft.varietal" type="text" class="field-input mt-auto" :class="prefillClass('varietal')" placeholder="Heirloom" @input="clearPrefill('varietal')">
           </div>
 
-          <div>
+          <div class="flex flex-col">
             <label class="field-label" for="process">Process</label>
-            <input id="process" v-model="draft.process" type="text" class="field-input" :class="prefillClass('process')" placeholder="Washed" @input="clearPrefill('process')">
+            <input id="process" v-model="draft.process" type="text" class="field-input mt-auto" :class="prefillClass('process')" placeholder="Washed" @input="clearPrefill('process')">
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
-          <div>
+          <div class="flex flex-col">
             <label class="field-label" for="roastProfile">Roast profile</label>
-            <select id="roastProfile" v-model="draft.roastProfile" class="field-input" :class="prefillClass('roastProfile')" @change="clearPrefill('roastProfile')">
+            <select id="roastProfile" v-model="draft.roastProfile" class="field-input mt-auto" :class="prefillClass('roastProfile')" @change="clearPrefill('roastProfile')">
               <option
                 v-for="profile in ROAST_PROFILES"
                 :key="profile.value"
@@ -152,9 +152,9 @@ async function submitForm() {
             </select>
           </div>
 
-          <div>
+          <div class="flex flex-col">
             <label class="field-label" for="roastDate">Roast date</label>
-            <input id="roastDate" v-model="roastDateInput" type="date" class="field-input" :class="prefillClass('roastDate')" @input="clearPrefill('roastDate')">
+            <input id="roastDate" v-model="roastDateInput" type="date" class="field-input mt-auto" :class="prefillClass('roastDate')" @input="clearPrefill('roastDate')">
           </div>
         </div>
 
@@ -167,14 +167,14 @@ async function submitForm() {
         </div>
 
         <div class="grid grid-cols-2 gap-4">
-          <div>
+          <div class="flex flex-col">
             <label class="field-label" for="startWeight">Starting weight (g)</label>
-            <input id="startWeight" v-model.number="draft.startWeight" min="0.1" step="0.1" type="number" class="field-input" :class="prefillClass('startWeight')" @input="clearPrefill('startWeight')">
+            <input id="startWeight" v-model.number="draft.startWeight" min="0.1" step="0.1" type="number" class="field-input mt-auto" :class="prefillClass('startWeight')" @input="clearPrefill('startWeight')">
           </div>
 
-          <div>
+          <div class="flex flex-col">
             <label class="field-label" for="threshold">Low-stock threshold (g)</label>
-            <input id="threshold" v-model.number="draft.threshold" min="0" step="1" type="number" class="field-input">
+            <input id="threshold" v-model.number="draft.threshold" min="0" step="1" type="number" class="field-input mt-auto">
           </div>
         </div>
 

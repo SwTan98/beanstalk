@@ -125,19 +125,19 @@ function submitForm() {
       </div>
 
       <div class="grid xs:grid-cols-2 gap-4">
-        <div>
+        <div class="flex flex-col">
           <label class="field-label" for="brewedAt">Brewed at</label>
           <input
             id="brewedAt"
             v-model="draft.brewedAt"
             type="datetime-local"
-            class="field-input"
+            class="field-input mt-auto"
           />
         </div>
 
-        <div>
+        <div class="flex flex-col">
           <label class="field-label" for="method">Method</label>
-          <select id="method" v-model="draft.method" class="field-input">
+          <select id="method" v-model="draft.method" class="field-input mt-auto">
             <option
               v-for="method in BREW_METHODS"
               :key="method.value"
@@ -150,7 +150,7 @@ function submitForm() {
       </div>
 
       <div class="grid xs:grid-cols-2 gap-4">
-        <div>
+        <div class="flex flex-col">
           <label class="field-label" for="dose">Dose (g)</label>
           <input
             id="dose"
@@ -158,11 +158,11 @@ function submitForm() {
             min="0.1"
             step="0.1"
             type="number"
-            class="field-input"
+            class="field-input mt-auto"
           />
         </div>
 
-        <div>
+        <div class="flex flex-col">
           <label class="field-label" for="yield">Yield (g)</label>
           <input
             id="yield"
@@ -170,24 +170,24 @@ function submitForm() {
             min="0.1"
             step="0.1"
             type="number"
-            class="field-input"
+            class="field-input mt-auto"
           />
         </div>
       </div>
 
       <div class="grid xs:grid-cols-2 gap-4">
-        <div>
+        <div class="flex flex-col">
           <label class="field-label" for="grinder">Grinder</label>
           <input
             id="grinder"
             v-model="draft.grinder"
             type="text"
-            class="field-input"
+            class="field-input mt-auto"
             placeholder="e.g. Sculptor 078"
           />
         </div>
 
-        <div>
+        <div class="flex flex-col">
           <label class="field-label" for="brewTime">Brew time (s)</label>
           <input
             id="brewTime"
@@ -195,7 +195,7 @@ function submitForm() {
             min="0"
             step="1"
             type="number"
-            class="field-input"
+            class="field-input mt-auto"
             placeholder="e.g. 165"
           />
         </div>
