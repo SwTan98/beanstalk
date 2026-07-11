@@ -39,6 +39,15 @@ export const BEANSTALK_DATABASE_UPGRADE_STEPS: DatabaseUpgradeStep[] = [
         })
       }
     }
+  },
+  {
+    version: 4,
+    description: 'Remove orphaned beanPhotos store left by a reverted feature.',
+    apply(database) {
+      if (database.objectStoreNames.contains('beanPhotos')) {
+        database.deleteObjectStore('beanPhotos')
+      }
+    }
   }
 ]
 

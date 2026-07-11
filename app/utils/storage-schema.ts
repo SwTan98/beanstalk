@@ -47,6 +47,12 @@ export const DATABASE_NAME = 'beanstalk'
 // *data-level* migrations run by ensureSchemaCompatibility in storage.ts.
 // Schema version 2 added Bean.roastDate/tastingNotes - new properties only,
 // so the database version stayed put.
-export const DATABASE_VERSION = 2
+// This must never be decreased, even when reverting a feature that bumped
+// it: IndexedDB rejects opening a database at a version lower than one
+// already persisted for the origin. Version 3 briefly shipped a beanPhotos
+// store that was later reverted; rolling the constant back to 2 permanently
+// broke any browser that had already upgraded to 3. Version 4 supersedes it
+// with a cleanup step instead (see storage-upgrades.ts).
+export const DATABASE_VERSION = 4
 export const STORAGE_SCHEMA_VERSION = 2
 export const SCHEMA_VERSION_KEY = 'schema-version'
