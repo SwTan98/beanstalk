@@ -56,14 +56,24 @@
   }
 
   .field-input {
-    @apply w-full rounded-2xl border border-espresso-100 bg-cream-50 px-4 py-3 text-sm text-stone-950 shadow-sm transition focus:border-espresso-300 focus:ring-4 focus:ring-espresso-100/60;
+    @apply w-full rounded-2xl border border-espresso-100 bg-cream-50 px-4 py-3 text-base text-stone-950 shadow-sm transition placeholder:text-espresso-300 hover:border-espresso-200 focus:border-espresso-300 focus:ring-4 focus:ring-espresso-100/60;
+  }
+
+  input[type='number'].field-input {
+    -moz-appearance: textfield;
+  }
+
+  input[type='number'].field-input::-webkit-outer-spin-button,
+  input[type='number'].field-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
 
   input[type='datetime-local'].field-input {
     @apply appearance-none;
     -webkit-appearance: none;
     height: 3rem;
-    line-height: 1.25rem;
+    line-height: 1.5rem;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
