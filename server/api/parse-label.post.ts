@@ -1,18 +1,31 @@
-// Primary parser for bag-label scans: the client posts OCR lines on every
-// online scan, and this route asks Gemini to extract the bean fields -
-// Gemini's result wins per field over the client's local deterministic parse.
+// Primary parser for bag-label scans, with two mutually exclusive modes:
+// - text mode ({ lines }): the client posts OCR lines and Gemini extracts the
+//   bean fields - its result wins per field over the client's local
+//   deterministic parse.
+// - image mode ({ image }): the client posts the bag photo itself and Gemini
+//   reads it directly - only accepted when the GEMINI_IMAGE_PARSE env flag is
+//   on, so the flag stays a working kill switch even for stale cached PWA
+//   clients.
 // The app must keep working when this route is unreachable, unconfigured, or
 // rate limited - clients degrade silently to the deterministic result.
 
 import { GEMINI_UPSTREAM_TIMEOUT_MS } from '#shared/utils/timeouts'
+import { isFlagEnabled } from '#shared/utils/flags'
 
 interface ParseLabelLine {
   text: string
   confidence: number
 }
 
+interface ParseLabelImage {
+  // Raw base64 payload, no data-URL prefix.
+  data: string
+  mimeType: string
+}
+
 interface ParseLabelBody {
-  lines: ParseLabelLine[]
+  lines?: ParseLabelLine[]
+  image?: ParseLabelImage
 }
 
 // Field names mirror BeanDraft in app/utils/types.ts verbatim. They are
@@ -35,6 +48,12 @@ interface LlmLabelFields {
 
 const MAX_LINES = 100
 const MAX_TOTAL_TEXT_LENGTH = 8192
+// ~3 MB decoded - comfortably under Vercel's ~4.5 MB request body limit with
+// JSON overhead headroom. The client mirrors this cap before uploading.
+const MAX_IMAGE_BASE64_LENGTH = 4_000_000
+// Gemini-supported formats; the client only ever sends image/jpeg.
+const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/
 const MAX_FIELD_LENGTH = 80
 const MAX_TASTING_NOTES = 5
 const MIN_PLAUSIBLE_GRAMS = 50
@@ -134,14 +153,8 @@ function isRateLimited(key: string): boolean {
   return false
 }
 
-function isValidBody(body: unknown): body is ParseLabelBody {
-  if (typeof body !== 'object' || body === null || !Array.isArray((body as ParseLabelBody).lines)) {
-    return false
-  }
-
-  const lines = (body as ParseLabelBody).lines
-
-  if (lines.length === 0 || lines.length > MAX_LINES) {
+function isValidLines(lines: unknown): lines is ParseLabelLine[] {
+  if (!Array.isArray(lines) || lines.length === 0 || lines.length > MAX_LINES) {
     return false
   }
 
@@ -152,14 +165,51 @@ function isValidBody(body: unknown): body is ParseLabelBody {
       return false
     }
 
-    if (typeof line.text !== 'string' || !Number.isFinite(line.confidence)) {
+    if (typeof (line as ParseLabelLine).text !== 'string' || !Number.isFinite((line as ParseLabelLine).confidence)) {
       return false
     }
 
-    totalTextLength += line.text.length
+    totalTextLength += (line as ParseLabelLine).text.length
   }
 
   return totalTextLength <= MAX_TOTAL_TEXT_LENGTH
+}
+
+function isValidImage(image: unknown): image is ParseLabelImage {
+  if (typeof image !== 'object' || image === null) {
+    return false
+  }
+
+  const { data, mimeType } = image as ParseLabelImage
+
+  if (typeof mimeType !== 'string' || !ALLOWED_IMAGE_MIME_TYPES.has(mimeType)) {
+    return false
+  }
+
+  return typeof data === 'string'
+    && data.length > 0
+    && data.length <= MAX_IMAGE_BASE64_LENGTH
+    && BASE64_PATTERN.test(data)
+}
+
+// The two modes are mutually exclusive: exactly one of lines/image must be
+// present and valid.
+function isValidBody(body: unknown): body is ParseLabelBody {
+  if (typeof body !== 'object' || body === null) {
+    return false
+  }
+
+  const { lines, image } = body as ParseLabelBody
+
+  if (lines !== undefined && image !== undefined) {
+    return false
+  }
+
+  if (lines !== undefined) {
+    return isValidLines(lines)
+  }
+
+  return image !== undefined && isValidImage(image)
 }
 
 function sanitizeString(value: unknown): string | null {
@@ -263,6 +313,10 @@ function buildResponseSchema() {
 // rejects, dropping the field on nearly every response.
 const EXTRACTION_INSTRUCTION = 'Extract fields to JSON schema from noisy OCR lines, standardize capitalization. Format roastDate as YYYY-MM-DD, never a best-before or expiry date. Null if missing.'
 
+// Image-mode variant: same schema-driven field semantics, same explicit
+// roastDate formatting (see the comment above).
+const IMAGE_EXTRACTION_INSTRUCTION = 'This is a photo of a coffee bag label. Extract fields to JSON schema, standardize capitalization. Format roastDate as YYYY-MM-DD, never a best-before or expiry date. Null if missing or unreadable.'
+
 export default defineEventHandler(async (event) => {
   const clientKey = getRequestIP(event, { xForwardedFor: true }) ?? 'unknown'
 
@@ -273,7 +327,14 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event).catch(() => null)
 
   if (!isValidBody(body)) {
-    throw createError({ statusCode: 400, statusMessage: 'Expected { lines: { text, confidence }[] } within size limits.' })
+    throw createError({ statusCode: 400, statusMessage: 'Expected exactly one of { lines: { text, confidence }[] } or { image: { data, mimeType } } within size limits.' })
+  }
+
+  // Reject image requests whenever the flag is off so it works as a kill
+  // switch: stale cached PWA clients fall back to their local OCR path on
+  // this fast 400 and pick up the new bundle on next load (autoUpdate SW).
+  if (body.image && !isFlagEnabled(process.env.GEMINI_IMAGE_PARSE)) {
+    throw createError({ statusCode: 400, statusMessage: 'Image label parsing is not enabled.' })
   }
 
   const apiKey = process.env.GEMINI_API_KEY
@@ -292,9 +353,22 @@ export default defineEventHandler(async (event) => {
   // Flash-Lite variants run with thinking off by default. Re-evaluate if
   // this model is ever deprecated.
   const model = process.env.GEMINI_MODEL ?? 'gemini-3.1-flash-lite'
-  const linesText = body.lines
-    .map((line) => `${line.text} [${line.confidence.toFixed(2)}]`)
-    .join('\n')
+
+  let parts: Array<Record<string, unknown>>
+
+  if (body.image) {
+    parts = [
+      { text: IMAGE_EXTRACTION_INSTRUCTION },
+      { inlineData: { mimeType: body.image.mimeType, data: body.image.data } }
+    ]
+  }
+  else {
+    const linesText = body.lines!
+      .map((line) => `${line.text} [${line.confidence.toFixed(2)}]`)
+      .join('\n')
+
+    parts = [{ text: `${EXTRACTION_INSTRUCTION}\n\nOCR lines:\n${linesText}` }]
+  }
 
   let responseText: string | undefined
 
@@ -306,7 +380,7 @@ export default defineEventHandler(async (event) => {
         contents: [
           {
             role: 'user',
-            parts: [{ text: `${EXTRACTION_INSTRUCTION}\n\nOCR lines:\n${linesText}` }]
+            parts
           }
         ],
         generationConfig: {
@@ -326,7 +400,8 @@ export default defineEventHandler(async (event) => {
     responseText = response.candidates?.[0]?.content?.parts?.[0]?.text
   }
   catch (error) {
-    // Never log the OCR contents or the provider response body.
+    // Never log the OCR contents, the image data, or the provider response
+    // body.
     const statusCode = (error as { statusCode?: number })?.statusCode
     console.error(`parse-label: provider request failed (status ${statusCode ?? 'unknown'})`)
     throw createError({ statusCode: 502, statusMessage: 'Label parsing service is unavailable.' })
