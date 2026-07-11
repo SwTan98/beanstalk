@@ -1,5 +1,6 @@
 import tailwindcss from "@tailwindcss/vite";
 import { GEMINI_FUNCTION_MAX_DURATION_S } from "./shared/utils/timeouts";
+import { isFlagEnabled } from "./shared/utils/flags";
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
@@ -38,6 +39,15 @@ export default defineNuxtConfig({
           href: "/pwa-192x192.png",
         },
       ],
+    },
+  },
+  runtimeConfig: {
+    public: {
+      // Non-secret boolean baked into the client bundle at build time
+      // (ssr: false SPA) - toggling GEMINI_IMAGE_PARSE requires a redeploy,
+      // which any Vercel env change needs anyway. Never expose
+      // GEMINI_API_KEY/GEMINI_MODEL here.
+      geminiImageParse: isFlagEnabled(process.env.GEMINI_IMAGE_PARSE),
     },
   },
   css: ["~/assets/css/main.css"],

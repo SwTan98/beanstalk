@@ -95,6 +95,13 @@ const downloadPercent = computed(() => Math.round(downloadProgress.value * 100))
       </p>
     </div>
 
+    <div v-else-if="stage === 'analyzing'" class="flex items-center gap-3 py-2">
+      <span class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-espresso-300 border-t-transparent" />
+      <p class="field-help">
+        Analyzing the label photo… this can take up to 25 seconds
+      </p>
+    </div>
+
     <div v-else-if="stage === 'downloading-models'" class="space-y-2 py-2">
       <p class="field-help">
         Downloading the one-time scanner toolkit (~43 MB)… {{ downloadPercent }}%
