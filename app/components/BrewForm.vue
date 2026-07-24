@@ -155,6 +155,12 @@ function errorClass(key: string) {
   return fieldErrors[key] ? "ring-1 ring-coral-400 bg-coral-100/40" : "";
 }
 
+function errorClassAny(...keys: string[]) {
+  return keys.some((key) => fieldErrors[key])
+    ? "ring-1 ring-coral-400 bg-coral-100/40"
+    : "";
+}
+
 function onDoseInput(event: Event) {
   clearError("dose");
   draft.dose = readNumber(event);
@@ -387,15 +393,14 @@ function submitForm() {
 
         <div class="flex flex-col">
           <label class="field-label" for="ratio">Ratio</label>
-          <div class="mt-auto flex items-center gap-2">
-            <span class="shrink-0 whitespace-nowrap text-sm font-medium text-espresso-700">1 :</span>
+          <div class="field-input-group mt-auto">
+            <span class="shrink-0 whitespace-nowrap text-sm font-medium text-espresso-500">1 :</span>
             <input
               id="ratio"
               :value="ratioInput ?? ''"
               min="0.1"
               step="0.1"
               type="number"
-              class="field-input min-w-0"
               placeholder="e.g. 15"
               @input="onRatioInput"
             />
@@ -424,20 +429,21 @@ function submitForm() {
 
         <div class="flex flex-col">
           <label class="field-label" for="brewMinutes">Brew time</label>
-          <div class="mt-auto flex items-center gap-2">
+          <div
+            class="field-input-group mt-auto"
+            :class="errorClassAny('brewMinutes', 'brewSeconds')"
+          >
             <input
               id="brewMinutes"
               :value="brewMinutes ?? ''"
               min="0"
               step="1"
               type="number"
-              class="field-input"
-              :class="errorClass('brewMinutes')"
               placeholder="min"
               aria-label="Brew time minutes"
               @input="onMinutesInput"
             />
-            <span class="shrink-0 text-sm font-medium text-espresso-700">:</span>
+            <span class="shrink-0 text-sm font-medium text-espresso-500">:</span>
             <input
               id="brewSeconds"
               :value="brewSeconds ?? ''"
@@ -445,8 +451,6 @@ function submitForm() {
               max="59"
               step="1"
               type="number"
-              class="field-input"
-              :class="errorClass('brewSeconds')"
               placeholder="sec"
               aria-label="Brew time seconds"
               @input="onSecondsInput"
