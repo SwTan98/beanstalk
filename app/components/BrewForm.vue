@@ -388,14 +388,14 @@ function submitForm() {
         <div class="flex flex-col">
           <label class="field-label" for="ratio">Ratio</label>
           <div class="mt-auto flex items-center gap-2">
-            <span class="text-sm font-medium text-espresso-700">1 :</span>
+            <span class="shrink-0 whitespace-nowrap text-sm font-medium text-espresso-700">1 :</span>
             <input
               id="ratio"
               :value="ratioInput ?? ''"
               min="0.1"
               step="0.1"
               type="number"
-              class="field-input"
+              class="field-input min-w-0"
               placeholder="e.g. 15"
               @input="onRatioInput"
             />
@@ -440,7 +440,7 @@ function submitForm() {
               aria-label="Brew time minutes"
               @input="onMinutesInput"
             />
-            <span class="text-sm font-medium text-espresso-700">:</span>
+            <span class="shrink-0 text-sm font-medium text-espresso-700">:</span>
             <input
               id="brewSeconds"
               :value="brewSeconds ?? ''"
