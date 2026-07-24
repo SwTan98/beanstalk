@@ -400,9 +400,6 @@ function submitForm() {
               @input="onRatioInput"
             />
           </div>
-          <p class="field-help">
-            Yield fills in automatically from dose × ratio.
-          </p>
         </div>
       </div>
 
