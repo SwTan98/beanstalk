@@ -1,6 +1,13 @@
 import type { IDBPDatabase } from 'idb'
-import { normalizeTastingNotes, normalizeText, parseDurationSeconds } from '~/utils/domain'
-import type { Bean, Brew } from '~/utils/types'
+import {
+  createId,
+  normalizeTastingNotes,
+  normalizeText,
+  parseDurationSeconds,
+  roundToSingleDecimal,
+  withAdjustedRemaining
+} from '~/utils/domain'
+import type { Bean, Brew, Grinder } from '~/utils/types'
 import {
   DATABASE_NAME,
   DATABASE_VERSION,
@@ -92,6 +99,73 @@ async function migrateToSchemaVersion2(database: IDBPDatabase<BeanstalkDatabase>
   await transaction.done
 }
 
+// Schema version 3: seed the grinders store from distinct grinder names used
+// in historical brews, deduped case-insensitively with the most recent brew's
+// casing winning.
+async function migrateToSchemaVersion3(database: IDBPDatabase<BeanstalkDatabase>) {
+  const transaction = database.transaction(['brews', 'grinders', 'meta'], 'readwrite')
+  const brewStore = transaction.objectStore('brews')
+  const grinderStore = transaction.objectStore('grinders')
+  const metaStore = transaction.objectStore('meta')
+  const storedBrews = await brewStore.getAll()
+  const now = new Date().toISOString()
+
+  const sortedBrews = storedBrews
+    .map(brewFromStorage)
+    .sort((left, right) => right.brewedAt.localeCompare(left.brewedAt))
+  const namesByKey = new Map<string, string>()
+
+  for (const brew of sortedBrews) {
+    const name = normalizeText(brew.grinder)
+    const key = name.toLowerCase()
+
+    if (name && !namesByKey.has(key)) {
+      namesByKey.set(key, name)
+    }
+  }
+
+  for (const name of namesByKey.values()) {
+    await grinderStore.put({
+      id: createId('grinder'),
+      name,
+      createdAt: now,
+      updatedAt: now
+    })
+  }
+
+  await metaStore.put({
+    key: SCHEMA_VERSION_KEY,
+    value: 3
+  })
+  await transaction.done
+}
+
+// Schema version 4: beans depleted to 0g now auto-archive; archive existing
+// depleted beans so old data matches the new rule.
+async function migrateToSchemaVersion4(database: IDBPDatabase<BeanstalkDatabase>) {
+  const transaction = database.transaction(['beans', 'meta'], 'readwrite')
+  const beanStore = transaction.objectStore('beans')
+  const metaStore = transaction.objectStore('meta')
+  const storedBeans = await beanStore.getAll()
+
+  for (const storedBean of storedBeans) {
+    const bean = beanFromStorage(storedBean)
+
+    if (bean.archivedAt === null && roundToSingleDecimal(bean.remaining) <= 0) {
+      await beanStore.put(beanToStorage({
+        ...bean,
+        archivedAt: bean.updatedAt
+      }))
+    }
+  }
+
+  await metaStore.put({
+    key: SCHEMA_VERSION_KEY,
+    value: 4
+  })
+  await transaction.done
+}
+
 async function ensureSchemaCompatibility(database: IDBPDatabase<BeanstalkDatabase>) {
   const schemaVersion = await database.get('meta', SCHEMA_VERSION_KEY)
   const persistedVersion = schemaVersion?.value ?? 0
@@ -106,6 +180,14 @@ async function ensureSchemaCompatibility(database: IDBPDatabase<BeanstalkDatabas
 
   if (persistedVersion < 2) {
     await migrateToSchemaVersion2(database)
+  }
+
+  if (persistedVersion < 3) {
+    await migrateToSchemaVersion3(database)
+  }
+
+  if (persistedVersion < 4) {
+    await migrateToSchemaVersion4(database)
   }
 }
 
@@ -171,6 +253,26 @@ export async function archiveBean(beanId: string, archivedAt: string) {
   return updatedBean
 }
 
+export async function listGrinders() {
+  const database = await getDatabase()
+  return database.getAll('grinders')
+}
+
+export async function saveGrinder(grinder: Grinder) {
+  const database = await getDatabase()
+  const transaction = database.transaction('grinders', 'readwrite')
+  await transaction.store.put(grinder)
+  await transaction.done
+  return grinder
+}
+
+export async function deleteGrinder(grinderId: string) {
+  const database = await getDatabase()
+  const transaction = database.transaction('grinders', 'readwrite')
+  await transaction.store.delete(grinderId)
+  await transaction.done
+}
+
 export async function listBrews() {
   const database = await getDatabase()
   return (await database.getAll('brews')).map(brewFromStorage)
@@ -203,11 +305,7 @@ export async function createBrewWithBeanUpdate(brew: Brew) {
     throw new Error('Dose cannot exceed the selected bean remaining weight.')
   }
 
-  const updatedBean: Bean = {
-    ...bean,
-    remaining: bean.remaining - brew.dose,
-    updatedAt: brew.updatedAt
-  }
+  const updatedBean = withAdjustedRemaining(bean, bean.remaining - brew.dose, brew.updatedAt)
   const normalizedBrew = brewFromStorage(brewToStorage(brew))
 
   await beanStore.put(beanToStorage(updatedBean))
@@ -254,11 +352,7 @@ export async function updateBrewWithBeanAdjustments(updatedBrew: Brew) {
       throw new Error('Dose cannot exceed the selected bean remaining weight.')
     }
 
-    const updatedBean: Bean = {
-      ...nextBean,
-      remaining: available - updatedBrew.dose,
-      updatedAt: updatedBrew.updatedAt
-    }
+    const updatedBean = withAdjustedRemaining(nextBean, available - updatedBrew.dose, updatedBrew.updatedAt)
 
     await beanStore.put(beanToStorage(updatedBean))
     await brewStore.put(brewToStorage(normalizedUpdatedBrew))
@@ -270,21 +364,21 @@ export async function updateBrewWithBeanAdjustments(updatedBrew: Brew) {
     }
   }
 
-  const restoredPreviousBean: Bean = {
-    ...previousBean,
-    remaining: previousBean.remaining + existingBrew.dose,
-    updatedAt: updatedBrew.updatedAt
-  }
+  const restoredPreviousBean = withAdjustedRemaining(
+    previousBean,
+    previousBean.remaining + existingBrew.dose,
+    updatedBrew.updatedAt
+  )
 
   if (updatedBrew.dose > nextBean.remaining) {
     throw new Error('Dose cannot exceed the selected bean remaining weight.')
   }
 
-  const updatedNextBean: Bean = {
-    ...nextBean,
-    remaining: nextBean.remaining - updatedBrew.dose,
-    updatedAt: updatedBrew.updatedAt
-  }
+  const updatedNextBean = withAdjustedRemaining(
+    nextBean,
+    nextBean.remaining - updatedBrew.dose,
+    updatedBrew.updatedAt
+  )
 
   await beanStore.put(beanToStorage(restoredPreviousBean))
   await beanStore.put(beanToStorage(updatedNextBean))
@@ -316,11 +410,11 @@ export async function deleteBrewWithBeanRestore(brewId: string) {
   }
 
   const normalizedBean = beanFromStorage(bean)
-  const updatedBean: Bean = {
-    ...normalizedBean,
-    remaining: Math.min(normalizedBean.startWeight, normalizedBean.remaining + brew.dose),
-    updatedAt: new Date().toISOString()
-  }
+  const updatedBean = withAdjustedRemaining(
+    normalizedBean,
+    Math.min(normalizedBean.startWeight, normalizedBean.remaining + brew.dose),
+    new Date().toISOString()
+  )
 
   await beanStore.put(beanToStorage(updatedBean))
   await brewStore.delete(brewId)

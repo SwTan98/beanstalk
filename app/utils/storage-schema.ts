@@ -1,5 +1,5 @@
 import type { DBSchema } from 'idb'
-import type { Bean, Brew } from '~/utils/types'
+import type { Bean, Brew, Grinder } from '~/utils/types'
 
 export interface StoredBean extends Omit<Bean, 'region' | 'varietal' | 'roastDate' | 'tastingNotes'> {
   region: unknown
@@ -35,6 +35,10 @@ export interface BeanstalkDatabase extends DBSchema {
       'by-bean-id': string
     }
   }
+  grinders: {
+    key: string
+    value: Grinder
+  }
   meta: {
     key: string
     value: StorageMetadataRecord
@@ -53,6 +57,8 @@ export const DATABASE_NAME = 'beanstalk'
 // store that was later reverted; rolling the constant back to 2 permanently
 // broke any browser that had already upgraded to 3. Version 4 supersedes it
 // with a cleanup step instead (see storage-upgrades.ts).
-export const DATABASE_VERSION = 4
-export const STORAGE_SCHEMA_VERSION = 2
+// Version 5 added the grinders store. Schema version 3 seeded it from
+// historical brews; schema version 4 archived already-depleted beans.
+export const DATABASE_VERSION = 5
+export const STORAGE_SCHEMA_VERSION = 4
 export const SCHEMA_VERSION_KEY = 'schema-version'
