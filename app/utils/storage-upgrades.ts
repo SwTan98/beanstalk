@@ -48,6 +48,17 @@ export const BEANSTALK_DATABASE_UPGRADE_STEPS: DatabaseUpgradeStep[] = [
         database.deleteObjectStore('beanPhotos')
       }
     }
+  },
+  {
+    version: 5,
+    description: 'Create grinders store for managed grinder equipment.',
+    apply(database) {
+      if (!database.objectStoreNames.contains('grinders')) {
+        database.createObjectStore('grinders', {
+          keyPath: 'id'
+        })
+      }
+    }
   }
 ]
 

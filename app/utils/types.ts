@@ -63,6 +63,13 @@ export interface BrewDraft {
   tastingNotes: string[]
 }
 
+export interface Grinder {
+  id: string
+  name: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface TopTastingNote {
   note: string
   count: number

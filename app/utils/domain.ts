@@ -1,4 +1,4 @@
-import type { Bean, Brew, BrewMethod, DialingInTip, RoastProfile } from '~/utils/types'
+import type { Bean, Brew, BrewMethod, DialingInTip, Grinder, RoastProfile } from '~/utils/types'
 
 export const DEFAULT_BEAN_THRESHOLD = 30
 
@@ -174,6 +174,40 @@ export function sortBeans(beans: Bean[]) {
 
 export function sortBrews(brews: Brew[]) {
   return [...brews].sort((left, right) => right.brewedAt.localeCompare(left.brewedAt))
+}
+
+export function sortGrinders(grinders: Grinder[]) {
+  return [...grinders].sort((left, right) =>
+    left.name.localeCompare(right.name, undefined, { sensitivity: 'base' })
+  )
+}
+
+// Applies a remaining-weight change and keeps archivedAt in sync: a bean that
+// becomes depleted is archived, and an archived bean whose stock is restored
+// from depletion is un-archived. A bean manually archived while it still had
+// stock never un-archives here (wasDepleted is false for it); a bean manually
+// archived at exactly 0g is indistinguishable from an auto-archived one and
+// will un-archive on restore. Rounding defeats float residue from 0.1-step
+// dose arithmetic (e.g. 1e-14g must count as depleted).
+export function withAdjustedRemaining(bean: Bean, nextRemaining: number, timestamp: string): Bean {
+  const wasDepleted = roundToSingleDecimal(bean.remaining) <= 0
+  const becomesDepleted = roundToSingleDecimal(nextRemaining) <= 0
+
+  let archivedAt = bean.archivedAt
+
+  if (archivedAt === null && becomesDepleted) {
+    archivedAt = timestamp
+  }
+  else if (archivedAt !== null && wasDepleted && !becomesDepleted) {
+    archivedAt = null
+  }
+
+  return {
+    ...bean,
+    remaining: nextRemaining,
+    updatedAt: timestamp,
+    archivedAt
+  }
 }
 
 const UNDER_EXTRACTED_NOTES = new Set(['sour', 'sharp', 'salty', 'thin', 'underdeveloped'])

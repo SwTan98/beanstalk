@@ -2,10 +2,13 @@ import {
   archiveBean as archiveBeanRecord,
   createBrewWithBeanUpdate,
   deleteBrewWithBeanRestore,
+  deleteGrinder as deleteGrinderRecord,
   getBrew,
   listBeans,
   listBrews,
+  listGrinders,
   saveBean,
+  saveGrinder,
   updateBrewWithBeanAdjustments
 } from '~/utils/storage'
 import {
@@ -18,9 +21,10 @@ import {
   normalizeTastingNotes,
   normalizeText,
   sortBeans,
-  sortBrews
+  sortBrews,
+  sortGrinders
 } from '~/utils/domain'
-import type { Bean, BeanDraft, Brew, BrewDraft, TopTastingNote } from '~/utils/types'
+import type { Bean, BeanDraft, Brew, BrewDraft, Grinder, TopTastingNote } from '~/utils/types'
 
 let hydrationPromise: Promise<void> | null = null
 
@@ -31,6 +35,7 @@ function replaceBean(collection: Bean[], bean: Bean) {
 export function useBeanstalk() {
   const beans = useState<Bean[]>('beanstalk:beans', () => [])
   const brews = useState<Brew[]>('beanstalk:brews', () => [])
+  const grinders = useState<Grinder[]>('beanstalk:grinders', () => [])
   const isLoading = useState<boolean>('beanstalk:is-loading', () => false)
   const hasHydrated = useState<boolean>('beanstalk:has-hydrated', () => false)
 
@@ -44,9 +49,14 @@ export function useBeanstalk() {
         isLoading.value = true
 
         try {
-          const [storedBeans, storedBrews] = await Promise.all([listBeans(), listBrews()])
+          const [storedBeans, storedBrews, storedGrinders] = await Promise.all([
+            listBeans(),
+            listBrews(),
+            listGrinders()
+          ])
           beans.value = sortBeans(storedBeans)
           brews.value = sortBrews(storedBrews)
+          grinders.value = sortGrinders(storedGrinders)
           hasHydrated.value = true
         }
         finally {
@@ -90,6 +100,7 @@ export function useBeanstalk() {
 
   const latestBrew = computed(() => recentBrews.value[0] ?? null)
   const dialingInTip = computed(() => getDialingInTip(latestBrew.value))
+  const lastUsedGrinderName = computed(() => latestBrew.value?.grinder ?? '')
 
   async function createBean(input: BeanDraft) {
     await ensureHydrated()
@@ -141,6 +152,44 @@ export function useBeanstalk() {
     const updatedBean = await archiveBeanRecord(beanId, new Date().toISOString())
     beans.value = replaceBean(beans.value, updatedBean)
     return updatedBean
+  }
+
+  async function addGrinder(name: string) {
+    await ensureHydrated()
+
+    const normalized = normalizeText(name)
+
+    if (!normalized) {
+      throw new Error('Enter a grinder name before adding it.')
+    }
+
+    const existing = grinders.value.find(
+      (grinder) => grinder.name.toLowerCase() === normalized.toLowerCase()
+    )
+
+    if (existing) {
+      return existing
+    }
+
+    const now = new Date().toISOString()
+    const grinder: Grinder = {
+      id: createId('grinder'),
+      name: normalized,
+      createdAt: now,
+      updatedAt: now
+    }
+
+    await saveGrinder(grinder)
+    grinders.value = sortGrinders([grinder, ...grinders.value])
+
+    return grinder
+  }
+
+  async function removeGrinder(grinderId: string) {
+    await ensureHydrated()
+
+    await deleteGrinderRecord(grinderId)
+    grinders.value = grinders.value.filter((grinder) => grinder.id !== grinderId)
   }
 
   function buildBrewRecord(input: BrewDraft, existingBrew?: Brew): Brew {
@@ -249,6 +298,7 @@ export function useBeanstalk() {
   return {
     beans,
     brews,
+    grinders,
     isLoading,
     hasHydrated,
     activeBeans,
@@ -260,9 +310,12 @@ export function useBeanstalk() {
     topTastingNotes,
     latestBrew,
     dialingInTip,
+    lastUsedGrinderName,
     ensureHydrated,
     createBean,
     archiveBean,
+    addGrinder,
+    removeGrinder,
     createBrew,
     updateBrew,
     deleteBrew,
